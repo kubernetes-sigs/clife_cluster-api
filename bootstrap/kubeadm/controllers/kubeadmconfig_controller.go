@@ -902,7 +902,8 @@ func (r *KubeadmConfigReconciler) storeBootstrapData(ctx context.Context, scope 
 			},
 		},
 		Data: map[string][]byte{
-			"value": data,
+			"value":  data,
+			"format": []byte(scope.Config.Spec.Format),
 		},
 		Type: clusterv1.ClusterSecretType,
 	}
