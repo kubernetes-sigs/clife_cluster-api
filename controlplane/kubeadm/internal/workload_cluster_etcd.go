@@ -20,12 +20,10 @@ import (
 	"context"
 
 	"github.com/pkg/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha4"
 	"sigs.k8s.io/cluster-api/controlplane/kubeadm/internal/etcd"
 	etcdutil "sigs.k8s.io/cluster-api/controlplane/kubeadm/internal/etcd/util"
-	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type etcdClientFor interface {
@@ -80,24 +78,6 @@ func (w *Workload) ReconcileEtcdMembers(ctx context.Context, nodeNames []string)
 	}
 
 	return removedMembers, kerrors.NewAggregate(errs)
-}
-
-// UpdateEtcdVersionInKubeadmConfigMap sets the imageRepository or the imageTag or both in the kubeadm config map.
-func (w *Workload) UpdateEtcdVersionInKubeadmConfigMap(ctx context.Context, imageRepository, imageTag string) error {
-	configMapKey := ctrlclient.ObjectKey{Name: kubeadmConfigKey, Namespace: metav1.NamespaceSystem}
-	kubeadmConfigMap, err := w.getConfigMap(ctx, configMapKey)
-	if err != nil {
-		return err
-	}
-	config := &kubeadmConfig{ConfigMap: kubeadmConfigMap}
-	changed, err := config.UpdateEtcdMeta(imageRepository, imageTag)
-	if err != nil || !changed {
-		return err
-	}
-	if err := w.Client.Update(ctx, config.ConfigMap); err != nil {
-		return errors.Wrap(err, "error updating kubeadm ConfigMap")
-	}
-	return nil
 }
 
 // RemoveEtcdMemberForMachine removes the etcd member from the target cluster's etcd cluster.

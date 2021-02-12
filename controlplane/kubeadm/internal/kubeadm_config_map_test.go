@@ -23,6 +23,7 @@ import (
 
 	. "github.com/onsi/gomega"
 
+	"github.com/blang/semver"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubeadmv1 "sigs.k8s.io/cluster-api/bootstrap/kubeadm/types/v1beta1"
@@ -52,13 +53,13 @@ kubernetesVersion: v1.16.1
 
 	tests := []struct {
 		name      string
-		version   string
+		version   semver.Version
 		config    *corev1.ConfigMap
 		expectErr bool
 	}{
 		{
 			name:      "updates the config map",
-			version:   "v1.17.2",
+			version:   semver.MustParse("1.17.2"),
 			config:    kconf,
 			expectErr: false,
 		},
@@ -82,10 +83,8 @@ kubernetesVersion: v1.16.1
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
 			conf := tt.config.DeepCopy()
-			k := kubeadmConfig{
-				ConfigMap: conf,
-			}
-			err := k.UpdateKubernetesVersion(tt.version)
+			k := NewKubeadmConfig(conf)
+			err := k.ReconcileKubernetesVersion(tt.version)
 			if tt.expectErr {
 				g.Expect(err).To(HaveOccurred())
 				return
@@ -120,9 +119,9 @@ apiVersion: kubeadm.k8s.io/vNbetaM
 kind: ClusterStatus`,
 		},
 	}
-	kc := kubeadmConfig{ConfigMap: original}
+	kc := NewKubeadmConfig(original)
 	g.Expect(kc.RemoveAPIEndpoint("ip-10-0-0-3.ec2.internal")).ToNot(HaveOccurred())
-	g.Expect(kc.ConfigMap.Data).To(HaveKey("ClusterStatus"))
+	g.Expect(kc.GetConfigMap().Data).To(HaveKey("ClusterStatus"))
 	var status struct {
 		APIEndpoints map[string]interface{} `yaml:"apiEndpoints"`
 		APIVersion   string                 `yaml:"apiVersion"`
@@ -130,7 +129,7 @@ kind: ClusterStatus`,
 
 		Extra map[string]interface{} `yaml:",inline"`
 	}
-	g.Expect(yaml.UnmarshalStrict([]byte(kc.ConfigMap.Data["ClusterStatus"]), &status)).To(Succeed())
+	g.Expect(yaml.UnmarshalStrict([]byte(kc.GetConfigMap().Data["ClusterStatus"]), &status)).To(Succeed())
 	g.Expect(status.Extra).To(BeEmpty())
 
 	g.Expect(status.APIEndpoints).To(SatisfyAll(
@@ -253,15 +252,18 @@ etcd:
 		t.Run(test.name, func(t *testing.T) {
 			g := NewWithT(t)
 
-			kconfig := &kubeadmConfig{
-				ConfigMap: &corev1.ConfigMap{
-					Data: map[string]string{
-						clusterConfigurationKey: test.clusterConfigurationValue,
-					},
+			kconfig := NewKubeadmConfig(&corev1.ConfigMap{
+				Data: map[string]string{
+					clusterConfigurationKey: test.clusterConfigurationValue,
 				},
+			})
+
+			imageMeta := kubeadmv1.ImageMeta{
+				ImageRepository: test.imageRepository,
+				ImageTag:        test.imageTag,
 			}
 
-			changed, err := kconfig.UpdateEtcdMeta(test.imageRepository, test.imageTag)
+			err := kconfig.ReconcileEtcdImageMeta(imageMeta)
 			if test.expectErr == nil {
 				g.Expect(err).ToNot(HaveOccurred())
 			} else {
@@ -269,13 +271,12 @@ etcd:
 				g.Expect(err.Error()).To(ContainSubstring(test.expectErr.Error()))
 			}
 
-			g.Expect(changed).To(Equal(test.expectChanged))
-			if changed {
+			if test.expectChanged {
 				if test.imageRepository != "" {
-					g.Expect(kconfig.ConfigMap.Data[clusterConfigurationKey]).To(ContainSubstring(test.imageRepository))
+					g.Expect(kconfig.GetConfigMap().Data[clusterConfigurationKey]).To(ContainSubstring(test.imageRepository))
 				}
 				if test.imageTag != "" {
-					g.Expect(kconfig.ConfigMap.Data[clusterConfigurationKey]).To(ContainSubstring(test.imageTag))
+					g.Expect(kconfig.GetConfigMap().Data[clusterConfigurationKey]).To(ContainSubstring(test.imageTag))
 				}
 			}
 
@@ -350,14 +351,14 @@ scheduler: {}`,
 			g := NewWithT(t)
 			imageRepository := "gcr.io/example"
 			imageTag := "v1.0.1-sometag"
-			kc := kubeadmConfig{ConfigMap: tt.cm}
+			kc := NewKubeadmConfig(tt.cm)
 
 			if tt.expectErr {
-				g.Expect(kc.UpdateCoreDNSImageInfo(imageRepository, imageTag)).ToNot(Succeed())
+				g.Expect(kc.ReconcileCoreDNSImageInfo(imageRepository, imageTag)).ToNot(Succeed())
 				return
 			}
-			g.Expect(kc.UpdateCoreDNSImageInfo(imageRepository, imageTag)).To(Succeed())
-			g.Expect(kc.ConfigMap.Data).To(HaveKey(clusterConfigurationKey))
+			g.Expect(kc.ReconcileCoreDNSImageInfo(imageRepository, imageTag)).To(Succeed())
+			g.Expect(kc.GetConfigMap().Data).To(HaveKey(clusterConfigurationKey))
 
 			type dns struct {
 				Type            string `yaml:"type"`
@@ -368,7 +369,7 @@ scheduler: {}`,
 				DNS dns `yaml:"dns"`
 			}
 
-			g.Expect(yaml.Unmarshal([]byte(kc.ConfigMap.Data[clusterConfigurationKey]), &actualClusterConfig)).To(Succeed())
+			g.Expect(yaml.Unmarshal([]byte(kc.GetConfigMap().Data[clusterConfigurationKey]), &actualClusterConfig)).To(Succeed())
 			actualDNS := actualClusterConfig.DNS
 			g.Expect(actualDNS.Type).To(BeEquivalentTo(kubeadmv1.CoreDNS))
 			g.Expect(actualDNS.ImageRepository).To(Equal(imageRepository))
@@ -429,13 +430,11 @@ imageRepository: "cool"
 		t.Run(test.name, func(t *testing.T) {
 			g := NewWithT(t)
 
-			kconfig := &kubeadmConfig{
-				ConfigMap: &corev1.ConfigMap{
-					Data: test.data,
-				},
-			}
+			kconfig := NewKubeadmConfig(&corev1.ConfigMap{
+				Data: test.data,
+			})
 
-			err := kconfig.UpdateImageRepository(test.imageRepository)
+			err := kconfig.ReconcileImageRepository(test.imageRepository)
 			if test.expectErr == nil {
 				g.Expect(err).ToNot(HaveOccurred())
 			} else {
@@ -443,12 +442,12 @@ imageRepository: "cool"
 				g.Expect(err.Error()).To(ContainSubstring(test.expectErr.Error()))
 			}
 
-			g.Expect(kconfig.ConfigMap.Data[clusterConfigurationKey]).To(ContainSubstring(test.expected))
+			g.Expect(kconfig.GetConfigMap().Data[clusterConfigurationKey]).To(ContainSubstring(test.expected))
 		})
 	}
 }
 
-func TestApiServer(t *testing.T) {
+func TestAPIServer(t *testing.T) {
 
 	tests := []struct {
 		name         string
@@ -456,7 +455,6 @@ func TestApiServer(t *testing.T) {
 		newAPIServer kubeadmv1.APIServer
 		expected     string
 		expectErr    error
-		changed      bool
 	}{
 		{
 			name: "it should set the values when no api server config is present",
@@ -481,7 +479,6 @@ kind: ClusterConfiguration
 apiVersion: kubeadm.k8s.io/v1beta2
 kind: ClusterConfiguration
 `,
-			changed: true,
 		},
 		{
 			name: "it should override existing config with the values set in spec",
@@ -541,7 +538,6 @@ apiServer:
 apiVersion: kubeadm.k8s.io/v1beta2
 kind: ClusterConfiguration
 `,
-			changed: true,
 		},
 		{
 			name: "it should not do anything if there are no changes",
@@ -600,7 +596,6 @@ kind: ClusterConfiguration
 apiVersion: kubeadm.k8s.io/v1beta2
 kind: ClusterConfiguration
 `,
-			changed: false,
 		},
 		{
 			name: "it should return error when the config is invalid",
@@ -617,21 +612,17 @@ kind: ClusterConfiguration
 		t.Run(test.name, func(t *testing.T) {
 			g := NewWithT(t)
 
-			kconfig := &kubeadmConfig{
-				ConfigMap: &corev1.ConfigMap{
-					Data: test.data,
-				},
-			}
+			kconfig := NewKubeadmConfig(&corev1.ConfigMap{
+				Data: test.data,
+			})
 
-			changed, err := kconfig.UpdateAPIServer(test.newAPIServer)
+			err := kconfig.ReconcileAPIServer(test.newAPIServer)
 			if test.expectErr == nil {
 				g.Expect(err).ToNot(HaveOccurred())
-				g.Expect(changed).Should(Equal(test.changed))
-				g.Expect(kconfig.ConfigMap.Data[clusterConfigurationKey]).Should(Equal(test.expected))
+				g.Expect(kconfig.GetConfigMap().Data[clusterConfigurationKey]).Should(Equal(test.expected))
 			} else {
 				g.Expect(err).To(HaveOccurred())
 				g.Expect(err.Error()).To(ContainSubstring(test.expectErr.Error()))
-				g.Expect(changed).Should(Equal(false))
 			}
 
 		})
@@ -646,7 +637,6 @@ func TestControllerManager(t *testing.T) {
 		newControllerManager kubeadmv1.ControlPlaneComponent
 		expected             string
 		expectErr            error
-		changed              bool
 	}{
 		{
 			name: "it should set the values when no controller manager config is present",
@@ -670,7 +660,6 @@ controllerManager:
     name: mount1
 kind: ClusterConfiguration
 `,
-			changed: true,
 		},
 		{
 			name: "it should override existing config with the values set in spec",
@@ -717,7 +706,6 @@ controllerManager:
     name: anotherMount
 kind: ClusterConfiguration
 `,
-			changed: true,
 		},
 		{
 			name: "it should not do anything if there are no changes",
@@ -764,7 +752,6 @@ kind: ClusterConfiguration
 apiVersion: kubeadm.k8s.io/v1beta2
 kind: ClusterConfiguration
 `,
-			changed: false,
 		},
 		{
 			name: "it should return error when the config is invalid",
@@ -781,21 +768,17 @@ kind: ClusterConfiguration
 		t.Run(test.name, func(t *testing.T) {
 			g := NewWithT(t)
 
-			kconfig := &kubeadmConfig{
-				ConfigMap: &corev1.ConfigMap{
-					Data: test.data,
-				},
-			}
+			kconfig := NewKubeadmConfig(&corev1.ConfigMap{
+				Data: test.data,
+			})
 
-			changed, err := kconfig.UpdateControllerManager(test.newControllerManager)
+			err := kconfig.ReconcileControllerManager(test.newControllerManager)
 			if test.expectErr == nil {
 				g.Expect(err).ToNot(HaveOccurred())
-				g.Expect(changed).Should(Equal(test.changed))
-				g.Expect(kconfig.ConfigMap.Data[clusterConfigurationKey]).Should(Equal(test.expected))
+				g.Expect(kconfig.GetConfigMap().Data[clusterConfigurationKey]).Should(Equal(test.expected))
 			} else {
 				g.Expect(err).To(HaveOccurred())
 				g.Expect(err.Error()).To(ContainSubstring(test.expectErr.Error()))
-				g.Expect(changed).Should(Equal(false))
 			}
 
 		})
@@ -810,7 +793,6 @@ func TestScheduler(t *testing.T) {
 		newScheduler kubeadmv1.ControlPlaneComponent
 		expected     string
 		expectErr    error
-		changed      bool
 	}{
 		{
 			name: "it should set the values when no scheduler config is present",
@@ -834,7 +816,6 @@ scheduler:
     mountPath: /bar
     name: mount1
 `,
-			changed: true,
 		},
 		{
 			name: "it should override existing config with the values set in spec",
@@ -881,7 +862,6 @@ scheduler:
     mountPath: /c/d
     name: anotherMount
 `,
-			changed: true,
 		},
 		{
 			name: "it should not do anything if there are no changes",
@@ -928,7 +908,6 @@ kind: ClusterConfiguration
 apiVersion: kubeadm.k8s.io/v1beta2
 kind: ClusterConfiguration
 `,
-			changed: false,
 		},
 		{
 			name: "it should return error when the config is invalid",
@@ -945,23 +924,18 @@ kind: ClusterConfiguration
 		t.Run(test.name, func(t *testing.T) {
 			g := NewWithT(t)
 
-			kconfig := &kubeadmConfig{
-				ConfigMap: &corev1.ConfigMap{
-					Data: test.data,
-				},
-			}
+			kconfig := NewKubeadmConfig(&corev1.ConfigMap{
+				Data: test.data,
+			})
 
-			changed, err := kconfig.UpdateScheduler(test.newScheduler)
+			err := kconfig.ReconcileScheduler(test.newScheduler)
 			if test.expectErr == nil {
 				g.Expect(err).ToNot(HaveOccurred())
-				g.Expect(changed).Should(Equal(test.changed))
-				g.Expect(kconfig.ConfigMap.Data[clusterConfigurationKey]).Should(Equal(test.expected))
+				g.Expect(kconfig.GetConfigMap().Data[clusterConfigurationKey]).Should(Equal(test.expected))
 			} else {
 				g.Expect(err).To(HaveOccurred())
 				g.Expect(err.Error()).To(ContainSubstring(test.expectErr.Error()))
-				g.Expect(changed).Should(Equal(false))
 			}
-
 		})
 	}
 }

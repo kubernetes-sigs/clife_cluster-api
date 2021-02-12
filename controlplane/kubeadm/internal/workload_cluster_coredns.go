@@ -214,11 +214,11 @@ func (w *Workload) updateCoreDNSImageInfoInKubeadmConfigMap(ctx context.Context,
 	if err != nil {
 		return err
 	}
-	config := &kubeadmConfig{ConfigMap: kubeadmConfigMap}
-	if err := config.UpdateCoreDNSImageInfo(dns.ImageRepository, dns.ImageTag); err != nil {
+	config := NewKubeadmConfig(kubeadmConfigMap)
+	if err := config.ReconcileCoreDNSImageInfo(dns.ImageRepository, dns.ImageTag); err != nil {
 		return err
 	}
-	if err := w.Client.Update(ctx, config.ConfigMap); err != nil {
+	if err := w.Client.Update(ctx, config.GetConfigMap()); err != nil {
 		return errors.Wrap(err, "error updating kubeadm ConfigMap")
 	}
 	return nil

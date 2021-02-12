@@ -21,11 +21,14 @@ import (
 
 	"github.com/blang/semver"
 	"github.com/pkg/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha4"
 	controlplanev1 "sigs.k8s.io/cluster-api/controlplane/kubeadm/api/v1alpha4"
 	"sigs.k8s.io/cluster-api/controlplane/kubeadm/internal"
 	"sigs.k8s.io/cluster-api/util"
+	"sigs.k8s.io/cluster-api/util/patch"
 	ctrl "sigs.k8s.io/controller-runtime"
+	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func (r *KubeadmControlPlaneReconciler) upgradeControlPlane(
@@ -64,36 +67,52 @@ func (r *KubeadmControlPlaneReconciler) upgradeControlPlane(
 		return ctrl.Result{}, errors.Wrap(err, "failed to set role and role binding for kubeadm")
 	}
 
-	if err := workloadCluster.UpdateKubernetesVersionInKubeadmConfigMap(ctx, parsedVersion); err != nil {
+	configMapKey := ctrlclient.ObjectKey{Name: "kubeadm-config", Namespace: metav1.NamespaceSystem}
+	kubeadmConfig, err := workloadCluster.GetKubeadmConfig(ctx, configMapKey)
+	if err != nil {
+		return ctrl.Result{}, errors.Wrapf(err, "failed to fetch kubeadm config map")
+	}
+
+	// Initialize the patch helper.
+	patchHelper, err := patch.NewHelper(kubeadmConfig.GetConfigMap(), workloadCluster.GetClient())
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	if err := kubeadmConfig.ReconcileKubernetesVersion(parsedVersion); err != nil {
 		return ctrl.Result{}, errors.Wrap(err, "failed to update the kubernetes version in the kubeadm config map")
 	}
 
 	if kcp.Spec.KubeadmConfigSpec.ClusterConfiguration != nil {
 		imageRepository := kcp.Spec.KubeadmConfigSpec.ClusterConfiguration.ImageRepository
-		if err := workloadCluster.UpdateImageRepositoryInKubeadmConfigMap(ctx, imageRepository); err != nil {
+		if err := kubeadmConfig.ReconcileImageRepository(imageRepository); err != nil {
 			return ctrl.Result{}, errors.Wrap(err, "failed to update the image repository in the kubeadm config map")
 		}
 	}
 
 	if kcp.Spec.KubeadmConfigSpec.ClusterConfiguration != nil && kcp.Spec.KubeadmConfigSpec.ClusterConfiguration.Etcd.Local != nil {
 		meta := kcp.Spec.KubeadmConfigSpec.ClusterConfiguration.Etcd.Local.ImageMeta
-		if err := workloadCluster.UpdateEtcdVersionInKubeadmConfigMap(ctx, meta.ImageRepository, meta.ImageTag); err != nil {
+		if err := kubeadmConfig.ReconcileEtcdImageMeta(meta); err != nil {
 			return ctrl.Result{}, errors.Wrap(err, "failed to update the etcd version in the kubeadm config map")
 		}
 	}
 
 	if kcp.Spec.KubeadmConfigSpec.ClusterConfiguration != nil {
-		if err := workloadCluster.UpdateAPIServerInKubeadmConfigMap(ctx, kcp.Spec.KubeadmConfigSpec.ClusterConfiguration.APIServer); err != nil {
+		if err := kubeadmConfig.ReconcileAPIServer(kcp.Spec.KubeadmConfigSpec.ClusterConfiguration.APIServer); err != nil {
 			return ctrl.Result{}, errors.Wrap(err, "failed to update api server in the kubeadm config map")
 		}
 
-		if err := workloadCluster.UpdateControllerManagerInKubeadmConfigMap(ctx, kcp.Spec.KubeadmConfigSpec.ClusterConfiguration.ControllerManager); err != nil {
+		if err := kubeadmConfig.ReconcileControllerManager(kcp.Spec.KubeadmConfigSpec.ClusterConfiguration.ControllerManager); err != nil {
 			return ctrl.Result{}, errors.Wrap(err, "failed to update controller manager in the kubeadm config map")
 		}
 
-		if err := workloadCluster.UpdateSchedulerInKubeadmConfigMap(ctx, kcp.Spec.KubeadmConfigSpec.ClusterConfiguration.Scheduler); err != nil {
+		if err := kubeadmConfig.ReconcileScheduler(kcp.Spec.KubeadmConfigSpec.ClusterConfiguration.Scheduler); err != nil {
 			return ctrl.Result{}, errors.Wrap(err, "failed to update scheduler in the kubeadm config map")
 		}
+	}
+
+	if err := patchHelper.Patch(ctx, kubeadmConfig.GetConfigMap()); err != nil {
+		return ctrl.Result{}, errors.Wrapf(err, "unable to patch kubeadm config map")
 	}
 
 	if err := workloadCluster.UpdateKubeletConfigMap(ctx, parsedVersion); err != nil {

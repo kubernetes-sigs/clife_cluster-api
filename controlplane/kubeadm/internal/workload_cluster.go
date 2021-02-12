@@ -35,7 +35,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha4"
-	kubeadmv1 "sigs.k8s.io/cluster-api/bootstrap/kubeadm/types/v1beta1"
 	controlplanev1 "sigs.k8s.io/cluster-api/controlplane/kubeadm/api/v1alpha4"
 	"sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/certs"
@@ -64,15 +63,13 @@ type WorkloadCluster interface {
 	UpdateEtcdConditions(ctx context.Context, controlPlane *ControlPlane)
 	EtcdMembers(ctx context.Context) ([]string, error)
 
+	// Getter methods
+	GetKubeadmConfig(ctx context.Context, key ctrlclient.ObjectKey) (KubeadmConfig, error)
+	GetClient() ctrlclient.Client
+
 	// Upgrade related tasks.
 	ReconcileKubeletRBACBinding(ctx context.Context, version semver.Version) error
 	ReconcileKubeletRBACRole(ctx context.Context, version semver.Version) error
-	UpdateKubernetesVersionInKubeadmConfigMap(ctx context.Context, version semver.Version) error
-	UpdateImageRepositoryInKubeadmConfigMap(ctx context.Context, imageRepository string) error
-	UpdateEtcdVersionInKubeadmConfigMap(ctx context.Context, imageRepository, imageTag string) error
-	UpdateAPIServerInKubeadmConfigMap(ctx context.Context, apiServer kubeadmv1.APIServer) error
-	UpdateControllerManagerInKubeadmConfigMap(ctx context.Context, controllerManager kubeadmv1.ControlPlaneComponent) error
-	UpdateSchedulerInKubeadmConfigMap(ctx context.Context, scheduler kubeadmv1.ControlPlaneComponent) error
 	UpdateKubeletConfigMap(ctx context.Context, version semver.Version) error
 	UpdateKubeProxyImageInfo(ctx context.Context, kcp *controlplanev1.KubeadmControlPlane) error
 	UpdateCoreDNS(ctx context.Context, kcp *controlplanev1.KubeadmControlPlane) error
@@ -106,46 +103,17 @@ func (w *Workload) getControlPlaneNodes(ctx context.Context) (*corev1.NodeList, 
 	return nodes, nil
 }
 
-func (w *Workload) getConfigMap(ctx context.Context, configMap ctrlclient.ObjectKey) (*corev1.ConfigMap, error) {
+func (w *Workload) GetKubeadmConfig(ctx context.Context, configMapKey ctrlclient.ObjectKey) (KubeadmConfig, error) {
 	original := &corev1.ConfigMap{}
-	if err := w.Client.Get(ctx, configMap, original); err != nil {
-		return nil, errors.Wrapf(err, "error getting %s/%s configmap from target cluster", configMap.Namespace, configMap.Name)
+	if err := w.Client.Get(ctx, configMapKey, original); err != nil {
+		return nil, errors.Wrapf(err, "error getting %s/%s configmap from target cluster", configMapKey.Namespace, configMapKey.Name)
 	}
-	return original.DeepCopy(), nil
+	return NewKubeadmConfig(original), nil
 }
 
-// UpdateKubernetesVersionInKubeadmConfigMap updates the kubernetes version in the kubeadm config map.
-func (w *Workload) UpdateImageRepositoryInKubeadmConfigMap(ctx context.Context, imageRepository string) error {
-	configMapKey := ctrlclient.ObjectKey{Name: "kubeadm-config", Namespace: metav1.NamespaceSystem}
-	kubeadmConfigMap, err := w.getConfigMap(ctx, configMapKey)
-	if err != nil {
-		return err
-	}
-	config := &kubeadmConfig{ConfigMap: kubeadmConfigMap}
-	if err := config.UpdateImageRepository(imageRepository); err != nil {
-		return err
-	}
-	if err := w.Client.Update(ctx, config.ConfigMap); err != nil {
-		return errors.Wrap(err, "error updating kubeadm ConfigMap")
-	}
-	return nil
-}
-
-// UpdateKubernetesVersionInKubeadmConfigMap updates the kubernetes version in the kubeadm config map.
-func (w *Workload) UpdateKubernetesVersionInKubeadmConfigMap(ctx context.Context, version semver.Version) error {
-	configMapKey := ctrlclient.ObjectKey{Name: kubeadmConfigKey, Namespace: metav1.NamespaceSystem}
-	kubeadmConfigMap, err := w.getConfigMap(ctx, configMapKey)
-	if err != nil {
-		return err
-	}
-	config := &kubeadmConfig{ConfigMap: kubeadmConfigMap}
-	if err := config.UpdateKubernetesVersion(fmt.Sprintf("v%s", version)); err != nil {
-		return err
-	}
-	if err := w.Client.Update(ctx, config.ConfigMap); err != nil {
-		return errors.Wrap(err, "error updating kubeadm ConfigMap")
-	}
-	return nil
+// GetClient is the getter method for the Client object
+func (w *Workload) GetClient() ctrlclient.Client {
+	return w.Client
 }
 
 // UpdateKubeletConfigMap will create a new kubelet-config-1.x config map for a new version of the kubelet.
@@ -185,75 +153,6 @@ func (w *Workload) UpdateKubeletConfigMap(ctx context.Context, version semver.Ve
 	return nil
 }
 
-// UpdateAPIServerInKubeadmConfigMap updates api server configuration in kubeadm config map.
-func (w *Workload) UpdateAPIServerInKubeadmConfigMap(ctx context.Context, apiServer kubeadmv1.APIServer) error {
-	configMapKey := ctrlclient.ObjectKey{Name: kubeadmConfigKey, Namespace: metav1.NamespaceSystem}
-	kubeadmConfigMap, err := w.getConfigMap(ctx, configMapKey)
-	if err != nil {
-		return err
-	}
-	config := &kubeadmConfig{ConfigMap: kubeadmConfigMap}
-	changed, err := config.UpdateAPIServer(apiServer)
-	if err != nil {
-		return err
-	}
-
-	if !changed {
-		return nil
-	}
-
-	if err := w.Client.Update(ctx, config.ConfigMap); err != nil {
-		return errors.Wrap(err, "error updating kubeadm ConfigMap")
-	}
-	return nil
-}
-
-// UpdateControllerManagerInKubeadmConfigMap updates controller manager configuration in kubeadm config map.
-func (w *Workload) UpdateControllerManagerInKubeadmConfigMap(ctx context.Context, controllerManager kubeadmv1.ControlPlaneComponent) error {
-	configMapKey := ctrlclient.ObjectKey{Name: kubeadmConfigKey, Namespace: metav1.NamespaceSystem}
-	kubeadmConfigMap, err := w.getConfigMap(ctx, configMapKey)
-	if err != nil {
-		return err
-	}
-	config := &kubeadmConfig{ConfigMap: kubeadmConfigMap}
-	changed, err := config.UpdateControllerManager(controllerManager)
-	if err != nil {
-		return err
-	}
-
-	if !changed {
-		return nil
-	}
-
-	if err := w.Client.Update(ctx, config.ConfigMap); err != nil {
-		return errors.Wrap(err, "error updating kubeadm ConfigMap")
-	}
-	return nil
-}
-
-// UpdateSchedulerInKubeadmConfigMap updates scheduler configuration in kubeadm config map.
-func (w *Workload) UpdateSchedulerInKubeadmConfigMap(ctx context.Context, scheduler kubeadmv1.ControlPlaneComponent) error {
-	configMapKey := ctrlclient.ObjectKey{Name: kubeadmConfigKey, Namespace: metav1.NamespaceSystem}
-	kubeadmConfigMap, err := w.getConfigMap(ctx, configMapKey)
-	if err != nil {
-		return err
-	}
-	config := &kubeadmConfig{ConfigMap: kubeadmConfigMap}
-	changed, err := config.UpdateScheduler(scheduler)
-	if err != nil {
-		return err
-	}
-
-	if !changed {
-		return nil
-	}
-
-	if err := w.Client.Update(ctx, config.ConfigMap); err != nil {
-		return errors.Wrap(err, "error updating kubeadm ConfigMap")
-	}
-	return nil
-}
-
 // RemoveMachineFromKubeadmConfigMap removes the entry for the machine from the kubeadm configmap.
 func (w *Workload) RemoveMachineFromKubeadmConfigMap(ctx context.Context, machine *clusterv1.Machine) error {
 	if machine == nil || machine.Status.NodeRef == nil {
@@ -273,16 +172,24 @@ func (w *Workload) RemoveNodeFromKubeadmConfigMap(ctx context.Context, name stri
 			Log.Error(err, "unable to get kubeadmConfigMap")
 			return false, nil
 		}
-		config := &kubeadmConfig{ConfigMap: kubeadmConfigMap}
+		config := NewKubeadmConfig(kubeadmConfigMap)
 		if err := config.RemoveAPIEndpoint(name); err != nil {
 			return false, err
 		}
-		if err := w.Client.Update(ctx, config.ConfigMap); err != nil {
+		if err := w.Client.Update(ctx, config.GetConfigMap()); err != nil {
 			Log.Error(err, "error updating kubeadm ConfigMap")
 			return false, nil
 		}
 		return true, nil
 	}, 5)
+}
+
+func (w *Workload) getConfigMap(ctx context.Context, configMap ctrlclient.ObjectKey) (*corev1.ConfigMap, error) {
+	original := &corev1.ConfigMap{}
+	if err := w.Client.Get(ctx, configMap, original); err != nil {
+		return nil, errors.Wrapf(err, "error getting %s/%s configmap from target cluster", configMap.Namespace, configMap.Name)
+	}
+	return original.DeepCopy(), nil
 }
 
 // ClusterStatus holds stats information about the cluster.

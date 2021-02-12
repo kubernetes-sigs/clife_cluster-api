@@ -20,7 +20,9 @@ import (
 	"context"
 
 	"github.com/blang/semver"
+	corev1 "k8s.io/api/core/v1"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha4"
+	kubeadmv1 "sigs.k8s.io/cluster-api/bootstrap/kubeadm/types/v1beta1"
 	"sigs.k8s.io/cluster-api/controlplane/kubeadm/internal"
 	"sigs.k8s.io/cluster-api/controlplane/kubeadm/internal/machinefilters"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -56,6 +58,7 @@ func (f *fakeManagementCluster) GetMachinesForCluster(c context.Context, n clien
 type fakeWorkloadCluster struct {
 	*internal.Workload
 	Status            internal.ClusterStatus
+	KubeadmConfig     fakeKubeadmConfig
 	EtcdMembersResult []string
 }
 
@@ -83,14 +86,6 @@ func (f fakeWorkloadCluster) ReconcileKubeletRBACBinding(ctx context.Context, ve
 	return nil
 }
 
-func (f fakeWorkloadCluster) UpdateKubernetesVersionInKubeadmConfigMap(ctx context.Context, version semver.Version) error {
-	return nil
-}
-
-func (f fakeWorkloadCluster) UpdateEtcdVersionInKubeadmConfigMap(ctx context.Context, imageRepository, imageTag string) error {
-	return nil
-}
-
 func (f fakeWorkloadCluster) UpdateKubeletConfigMap(ctx context.Context, version semver.Version) error {
 	return nil
 }
@@ -105,6 +100,54 @@ func (f fakeWorkloadCluster) RemoveMachineFromKubeadmConfigMap(ctx context.Conte
 
 func (f fakeWorkloadCluster) EtcdMembers(_ context.Context) ([]string, error) {
 	return f.EtcdMembersResult, nil
+}
+
+func (f fakeWorkloadCluster) GetKubeadmConfig(_ context.Context, _ client.ObjectKey) (internal.KubeadmConfig, error) {
+	return f.KubeadmConfig, nil
+}
+
+func (f fakeWorkloadCluster) GetClient() client.Client {
+	return nil
+}
+
+type fakeKubeadmConfig struct {
+	ConfigMap *corev1.ConfigMap
+}
+
+func (f fakeKubeadmConfig) GetConfigMap() *corev1.ConfigMap {
+	return f.ConfigMap
+}
+
+func (f fakeKubeadmConfig) RemoveAPIEndpoint(endpoint string) error {
+	return nil
+}
+
+func (f fakeKubeadmConfig) ReconcileKubernetesVersion(version semver.Version) error {
+	return nil
+}
+
+func (f fakeKubeadmConfig) ReconcileImageRepository(imageRepository string) error {
+	return nil
+}
+
+func (f fakeKubeadmConfig) ReconcileEtcdImageMeta(imageMeta kubeadmv1.ImageMeta) error {
+	return nil
+}
+
+func (f fakeKubeadmConfig) ReconcileCoreDNSImageInfo(repository, tag string) error {
+	return nil
+}
+
+func (f fakeKubeadmConfig) ReconcileAPIServer(apiServer kubeadmv1.APIServer) error {
+	return nil
+}
+
+func (f fakeKubeadmConfig) ReconcileControllerManager(controllerManager kubeadmv1.ControlPlaneComponent) error {
+	return nil
+}
+
+func (f fakeKubeadmConfig) ReconcileScheduler(scheduler kubeadmv1.ControlPlaneComponent) error {
+	return nil
 }
 
 type fakeMigrator struct {

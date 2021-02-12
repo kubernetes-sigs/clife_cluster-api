@@ -22,6 +22,7 @@ import (
 
 	. "github.com/onsi/gomega"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/pointer"
@@ -51,12 +52,18 @@ func TestKubeadmControlPlaneReconciler_upgradeControlPlane(t *testing.T) {
 			Management: &internal.Management{Client: fakeClient},
 			Workload: fakeWorkloadCluster{
 				Status: internal.ClusterStatus{Nodes: 1},
+				KubeadmConfig: fakeKubeadmConfig{
+					ConfigMap: &corev1.ConfigMap{},
+				},
 			},
 		},
 		managementClusterUncached: &fakeManagementCluster{
 			Management: &internal.Management{Client: fakeClient},
 			Workload: fakeWorkloadCluster{
 				Status: internal.ClusterStatus{Nodes: 1},
+				KubeadmConfig: fakeKubeadmConfig{
+					ConfigMap: &corev1.ConfigMap{},
+				},
 			},
 		},
 	}
