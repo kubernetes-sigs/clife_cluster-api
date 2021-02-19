@@ -17,6 +17,7 @@ limitations under the License.
 package v1alpha3
 
 import (
+	"math/rand"
 	"testing"
 
 	fuzz "github.com/google/gofuzz"
@@ -41,11 +42,11 @@ func TestFuzzyConversion(t *testing.T) {
 }
 
 func fuzzFuncs(_ runtimeserializer.CodecFactory) []interface{} {
-	return []interface{}{
+	return append([]interface{}{
 		KubeadmConfigStatusFuzzer,
 		dnsFuzzer,
 		clusterConfigurationFuzzer,
-	}
+	}, bootstrapTokenFuzzers()...)
 }
 
 func KubeadmConfigStatusFuzzer(obj *KubeadmConfigStatus, c fuzz.Continue) {
@@ -67,4 +68,46 @@ func clusterConfigurationFuzzer(obj *v1beta1.ClusterConfiguration, c fuzz.Contin
 
 	// ClusterConfiguration.UseHyperKubeImage has been removed in v1alpha4, so setting it to false in order to avoid v1beta1 --> v1alpha4 --> v1beta1 round trip errors.
 	obj.UseHyperKubeImage = false
+}
+
+func bootstrapTokenFuzzers() []interface{} {
+	return []interface{}{
+		// Fuzzer for BootstrapToken to ensure correctness of the token format.
+		func(j **v1beta1.BootstrapTokenString, c fuzz.Continue) {
+			if c.RandBool() {
+				t := &v1beta1.BootstrapTokenString{}
+				c.Fuzz(t)
+
+				t.ID = randTokenString(6)
+				t.Secret = randTokenString(16)
+
+				*j = t
+			} else {
+				*j = nil
+			}
+		},
+		func(j **v1alpha4.BootstrapTokenString, c fuzz.Continue) {
+			if c.RandBool() {
+				t := &v1alpha4.BootstrapTokenString{}
+				c.Fuzz(t)
+
+				t.ID = randTokenString(6)
+				t.Secret = randTokenString(16)
+
+				*j = t
+			} else {
+				*j = nil
+			}
+		},
+	}
+}
+
+const tokenCharsBytes = "abcdefghijklmnopqrstuvwxyz0123456789"
+
+func randTokenString(n int) string {
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = tokenCharsBytes[rand.Intn(len(tokenCharsBytes))]
+	}
+	return string(b)
 }
