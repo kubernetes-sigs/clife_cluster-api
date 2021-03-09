@@ -86,6 +86,8 @@ func (in *KubeadmControlPlane) Default() {
 func (in *KubeadmControlPlane) ValidateCreate() error {
 	allErrs := in.validateCommon()
 	allErrs = append(allErrs, in.validateEtcd(nil)...)
+	allErrs = append(allErrs, in.Spec.KubeadmConfigSpec.Validate()...)
+
 	if len(allErrs) > 0 {
 		return apierrors.NewInvalid(GroupVersion.WithKind("KubeadmControlPlane").GroupKind(), in.Name, allErrs)
 	}
@@ -182,6 +184,7 @@ func (in *KubeadmControlPlane) ValidateUpdate(old runtime.Object) error {
 	allErrs = append(allErrs, in.validateVersion(prev.Spec.Version)...)
 	allErrs = append(allErrs, in.validateEtcd(prev)...)
 	allErrs = append(allErrs, in.validateCoreDNSVersion(prev)...)
+	allErrs = append(allErrs, in.Spec.KubeadmConfigSpec.Validate()...)
 
 	if len(allErrs) > 0 {
 		return apierrors.NewInvalid(GroupVersion.WithKind("KubeadmControlPlane").GroupKind(), in.Name, allErrs)
