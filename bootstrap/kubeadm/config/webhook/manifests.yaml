@@ -28,3 +28,24 @@ webhooks:
     resources:
     - kubeadmconfigs
   sideEffects: None
+- admissionReviewVersions:
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-bootstrap-cluster-x-k8s-io-v1alpha4-kubeadmconfigtemplate
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: validation.kubeadmconfigtemplate.bootstrap.cluster.x-k8s.io
+  rules:
+  - apiGroups:
+    - bootstrap.cluster.x-k8s.io
+    apiVersions:
+    - v1alpha4
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - kubeadmconfigtemplates
+  sideEffects: None

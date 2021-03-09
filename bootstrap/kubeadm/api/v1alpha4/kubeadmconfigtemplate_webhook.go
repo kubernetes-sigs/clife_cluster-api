@@ -17,11 +17,46 @@ limitations under the License.
 package v1alpha4
 
 import (
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	runtime "k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/webhook"
 )
 
 func (r *KubeadmConfigTemplate) SetupWebhookWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr).
 		For(r).
 		Complete()
+}
+
+// +kubebuilder:webhook:verbs=create;update,path=/validate-bootstrap-cluster-x-k8s-io-v1alpha4-kubeadmconfigtemplate,mutating=false,failurePolicy=fail,matchPolicy=Equivalent,groups=bootstrap.cluster.x-k8s.io,resources=kubeadmconfigtemplates,versions=v1alpha4,name=validation.kubeadmconfigtemplate.bootstrap.cluster.x-k8s.io,sideEffects=None,admissionReviewVersions=v1beta1
+
+var _ webhook.Validator = &KubeadmConfigTemplate{}
+
+// ValidateCreate implements webhook.Validator so a webhook will be registered for the type.
+func (r *KubeadmConfigTemplate) ValidateCreate() error {
+	return r.Spec.validate(r.Name)
+}
+
+// ValidateUpdate implements webhook.Validator so a webhook will be registered for the type.
+func (r *KubeadmConfigTemplate) ValidateUpdate(old runtime.Object) error {
+	return r.Spec.validate(r.Name)
+}
+
+// ValidateDelete implements webhook.Validator so a webhook will be registered for the type.
+func (r *KubeadmConfigTemplate) ValidateDelete() error {
+	return nil
+}
+
+func (r *KubeadmConfigTemplateSpec) validate(name string) error {
+	var allErrs field.ErrorList
+
+	allErrs = append(allErrs, r.Template.Spec.Validate()...)
+
+	if len(allErrs) == 0 {
+		return nil
+	}
+
+	return apierrors.NewInvalid(GroupVersion.WithKind("KubeadmConfigTemplate").GroupKind(), name, allErrs)
 }
