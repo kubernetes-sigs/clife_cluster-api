@@ -449,11 +449,11 @@ func (r *KubeadmConfigReconciler) handleClusterNotInitialized(ctx context.Contex
 		Certificates:         certificates,
 	}
 
-	var cloudInitData []byte
+	var bootstrapInitData []byte
 
 	switch scope.Config.Spec.Format {
 	default:
-		cloudInitData, err = cloudinit.NewInitControlPlane(controlPlaneInput)
+		bootstrapInitData, err = cloudinit.NewInitControlPlane(controlPlaneInput)
 	}
 
 	if err != nil {
@@ -461,7 +461,7 @@ func (r *KubeadmConfigReconciler) handleClusterNotInitialized(ctx context.Contex
 		return ctrl.Result{}, err
 	}
 
-	if err := r.storeBootstrapData(ctx, scope, cloudInitData); err != nil {
+	if err := r.storeBootstrapData(ctx, scope, bootstrapInitData); err != nil {
 		scope.Error(err, "Failed to store bootstrap data")
 		return ctrl.Result{}, err
 	}
@@ -537,11 +537,11 @@ func (r *KubeadmConfigReconciler) joinWorker(ctx context.Context, scope *Scope) 
 		JoinConfiguration: joinData,
 	}
 
-	var cloudJoinData []byte
+	var bootstrapJoinData []byte
 
 	switch scope.Config.Spec.Format {
 	default:
-		cloudJoinData, err = cloudinit.NewNode(nodeInput)
+		bootstrapJoinData, err = cloudinit.NewNode(nodeInput)
 	}
 
 	if err != nil {
@@ -549,7 +549,7 @@ func (r *KubeadmConfigReconciler) joinWorker(ctx context.Context, scope *Scope) 
 		return ctrl.Result{}, err
 	}
 
-	if err := r.storeBootstrapData(ctx, scope, cloudJoinData); err != nil {
+	if err := r.storeBootstrapData(ctx, scope, bootstrapJoinData); err != nil {
 		scope.Error(err, "Failed to store bootstrap data")
 		return ctrl.Result{}, err
 	}
@@ -629,11 +629,11 @@ func (r *KubeadmConfigReconciler) joinControlplane(ctx context.Context, scope *S
 		},
 	}
 
-	var cloudJoinData []byte
+	var bootstrapJoinData []byte
 
 	switch scope.Config.Spec.Format {
 	default:
-		cloudJoinData, err = cloudinit.NewJoinControlPlane(controlPlaneJoinInput)
+		bootstrapJoinData, err = cloudinit.NewJoinControlPlane(controlPlaneJoinInput)
 	}
 
 	if err != nil {
@@ -641,7 +641,7 @@ func (r *KubeadmConfigReconciler) joinControlplane(ctx context.Context, scope *S
 		return ctrl.Result{}, err
 	}
 
-	if err := r.storeBootstrapData(ctx, scope, cloudJoinData); err != nil {
+	if err := r.storeBootstrapData(ctx, scope, bootstrapJoinData); err != nil {
 		scope.Error(err, "Failed to store bootstrap data")
 		return ctrl.Result{}, err
 	}
