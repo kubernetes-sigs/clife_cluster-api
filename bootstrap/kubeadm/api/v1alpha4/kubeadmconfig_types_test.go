@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	. "github.com/onsi/gomega"
+	"k8s.io/utils/pointer"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -138,6 +139,79 @@ func TestClusterValidate(t *testing.T) {
 							Content: "bar",
 						},
 					},
+				},
+			},
+			expectErr: true,
+		},
+		"returns_error_when_Ignition_fields_are_set_but_format_is_not_Ignition": {
+			in: &KubeadmConfig{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "baz",
+					Namespace: "default",
+				},
+				Spec: KubeadmConfigSpec{
+					Ignition: &IgnitionSpec{},
+				},
+			},
+			expectErr: true,
+		},
+		"returns_error_when_format_is_Ignition_but_there_is_no_Ignition_configuration": {
+			in: &KubeadmConfig{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "baz",
+					Namespace: "default",
+				},
+				Spec: KubeadmConfigSpec{
+					Format: Ignition,
+				},
+			},
+			expectErr: true,
+		},
+		"returns_error_when_format_is_Ignition_and_user_has_inactive_option_set": {
+			in: &KubeadmConfig{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "baz",
+					Namespace: "default",
+				},
+				Spec: KubeadmConfigSpec{
+					Format: Ignition,
+					Users: []User{
+						{
+							Inactive: pointer.BoolPtr(true),
+						},
+					},
+				},
+			},
+			expectErr: true,
+		},
+		"returns_error_when_format_is_Ignition_and_disk_setup_has_non_GTP_paritition_configured": {
+			in: &KubeadmConfig{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "baz",
+					Namespace: "default",
+				},
+				Spec: KubeadmConfigSpec{
+					Format: Ignition,
+					DiskSetup: &DiskSetup{
+						Partitions: []Partition{
+							{
+								TableType: pointer.StringPtr("MS-DOS"),
+							},
+						},
+					},
+				},
+			},
+			expectErr: true,
+		},
+		"returns_error_when_format_is_Ignition_and_experimental_retry_join_is_configured": {
+			in: &KubeadmConfig{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "baz",
+					Namespace: "default",
+				},
+				Spec: KubeadmConfigSpec{
+					Format:                   Ignition,
+					UseExperimentalRetryJoin: true,
 				},
 			},
 			expectErr: true,
