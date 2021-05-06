@@ -268,6 +268,26 @@ func Test_Discovery(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "Discovery with no control plane or machine deployments",
+			args: args{
+				discoverOptions: DiscoverOptions{},
+				objs:            test.NewFakeCluster("ns1", "cluster1").Objs(),
+			},
+			wantTree: map[string][]string{
+				// Cluster should be parent of InfrastructureCluster
+				"cluster.x-k8s.io/v1alpha4, Kind=Cluster, ns1/cluster1": {
+					"infrastructure.cluster.x-k8s.io/v1alpha4, Kind=GenericInfrastructureCluster, ns1/cluster1",
+				},
+				"infrastructure.cluster.x-k8s.io/v1alpha4, Kind=GenericInfrastructureCluster, ns1/cluster1": {},
+			},
+			wantNodeCheck: map[string]nodeCheck{
+				// InfrastructureCluster should have a meta name
+				"infrastructure.cluster.x-k8s.io/v1alpha4, Kind=GenericInfrastructureCluster, ns1/cluster1": func(g *WithT, obj client.Object) {
+					g.Expect(GetMetaName(obj)).To(Equal("ClusterInfrastructure"))
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

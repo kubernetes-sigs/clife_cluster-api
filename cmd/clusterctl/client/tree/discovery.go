@@ -19,6 +19,7 @@ package tree
 import (
 	"context"
 
+	"github.com/pkg/errors"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha4"
 	"sigs.k8s.io/cluster-api/controllers/external"
 	"sigs.k8s.io/cluster-api/util"
@@ -69,10 +70,14 @@ func Discovery(ctx context.Context, c client.Client, namespace, name string, opt
 	}
 
 	// Adds control plane
-	controlPLane, err := external.Get(ctx, c, cluster.Spec.ControlPlaneRef, cluster.Namespace)
-	if err == nil {
-		tree.Add(cluster, controlPLane, ObjectMetaName("ControlPlane"), GroupingObject(true))
+	if cluster.Spec.ControlPlaneRef == nil {
+		return nil, errors.Errorf("controlplane ref cannot be nil")
 	}
+	controlPlane, err := external.Get(ctx, c, cluster.Spec.ControlPlaneRef, cluster.Namespace)
+	if err != nil {
+		return nil, err
+	}
+	tree.Add(cluster, controlPlane, ObjectMetaName("ControlPlane"), GroupingObject(true))
 
 	// Adds control plane machines.
 	machinesList, err := getMachinesInCluster(ctx, c, cluster.Namespace, cluster.Name)
@@ -98,7 +103,7 @@ func Discovery(ctx context.Context, c client.Client, namespace, name string, opt
 	controlPlaneMachines := selectControlPlaneMachines(machinesList)
 	for i := range controlPlaneMachines {
 		cp := controlPlaneMachines[i]
-		addMachineFunc(controlPLane, cp)
+		addMachineFunc(controlPlane, cp)
 	}
 
 	if len(machinesList.Items) == len(controlPlaneMachines) {
