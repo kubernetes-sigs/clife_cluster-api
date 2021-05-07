@@ -71,11 +71,11 @@ func Discovery(ctx context.Context, c client.Client, namespace, name string, opt
 
 	// Adds control plane
 	if cluster.Spec.ControlPlaneRef == nil {
-		return nil, errors.Errorf("controlplane ref cannot be nil")
+		return nil, errors.New("controlplane ref cannot be nil")
 	}
 	controlPlane, err := external.Get(ctx, c, cluster.Spec.ControlPlaneRef, cluster.Namespace)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to get controlplane")
 	}
 	tree.Add(cluster, controlPlane, ObjectMetaName("ControlPlane"), GroupingObject(true))
 
