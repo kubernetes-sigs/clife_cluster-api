@@ -36,6 +36,7 @@ func Test_Discovery(t *testing.T) {
 	tests := []struct {
 		name          string
 		args          args
+		wantError     bool
 		wantTree      map[string][]string
 		wantNodeCheck map[string]nodeCheck
 	}{
@@ -62,6 +63,7 @@ func Test_Discovery(t *testing.T) {
 					).
 					Objs(),
 			},
+			wantError: false,
 			wantTree: map[string][]string{
 				// Cluster should be parent of InfrastructureCluster, ControlPlane, and WorkerNodes
 				"cluster.x-k8s.io/v1alpha4, Kind=Cluster, ns1/cluster1": {
@@ -131,6 +133,7 @@ func Test_Discovery(t *testing.T) {
 					).
 					Objs(),
 			},
+			wantError: false,
 			wantTree: map[string][]string{
 				// Cluster should be parent of InfrastructureCluster, ControlPlane, and WorkerNodes
 				"cluster.x-k8s.io/v1alpha4, Kind=Cluster, ns1/cluster1": {
@@ -203,6 +206,7 @@ func Test_Discovery(t *testing.T) {
 					).
 					Objs(),
 			},
+			wantError: false,
 			wantTree: map[string][]string{
 				// Cluster should be parent of InfrastructureCluster, ControlPlane, and WorkerNodes
 				"cluster.x-k8s.io/v1alpha4, Kind=Cluster, ns1/cluster1": {
@@ -274,19 +278,9 @@ func Test_Discovery(t *testing.T) {
 				discoverOptions: DiscoverOptions{},
 				objs:            test.NewFakeCluster("ns1", "cluster1").Objs(),
 			},
-			wantTree: map[string][]string{
-				// Cluster should be parent of InfrastructureCluster
-				"cluster.x-k8s.io/v1alpha4, Kind=Cluster, ns1/cluster1": {
-					"infrastructure.cluster.x-k8s.io/v1alpha4, Kind=GenericInfrastructureCluster, ns1/cluster1",
-				},
-				"infrastructure.cluster.x-k8s.io/v1alpha4, Kind=GenericInfrastructureCluster, ns1/cluster1": {},
-			},
-			wantNodeCheck: map[string]nodeCheck{
-				// InfrastructureCluster should have a meta name
-				"infrastructure.cluster.x-k8s.io/v1alpha4, Kind=GenericInfrastructureCluster, ns1/cluster1": func(g *WithT, obj client.Object) {
-					g.Expect(GetMetaName(obj)).To(Equal("ClusterInfrastructure"))
-				},
-			},
+			wantError:     true,
+			wantTree:      map[string][]string{},
+			wantNodeCheck: map[string]nodeCheck{},
 		},
 	}
 	for _, tt := range tests {
@@ -298,8 +292,13 @@ func Test_Discovery(t *testing.T) {
 			g.Expect(err).ToNot(HaveOccurred())
 
 			tree, err := Discovery(context.TODO(), client, "ns1", "cluster1", tt.args.discoverOptions)
-			g.Expect(tree).ToNot(BeNil())
-			g.Expect(err).ToNot(HaveOccurred())
+			if tt.wantError {
+				g.Expect(tree).To(BeNil())
+				g.Expect(err).To(HaveOccurred())
+			} else {
+				g.Expect(tree).ToNot(BeNil())
+				g.Expect(err).ToNot(HaveOccurred())
+			}
 
 			for parent, wantChildren := range tt.wantTree {
 				gotChildren := tree.GetObjectsByParent(types.UID(parent))
