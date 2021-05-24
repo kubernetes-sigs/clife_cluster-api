@@ -59,4 +59,5 @@ run:
     - ".*conversion.*\\.go$"
   skip-dirs:
     - third_party
+    - tilt_modules
   allow-parallel-runners: true

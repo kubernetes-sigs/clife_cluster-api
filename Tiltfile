@@ -103,26 +103,7 @@ COPY --from=tilt-helper /go/kubernetes/client/bin/kubectl /usr/bin/kubectl
 #         ]
 #     }
 # }
-def load_provider_tiltfiles():
-    provider_repos = settings.get("provider_repos", [])
 
-    for repo in provider_repos:
-        file = repo + "/tilt-provider.json"
-        provider_details = read_json(file, default = {})
-        if type(provider_details) != type([]):
-            provider_details = [provider_details]
-        for item in provider_details:
-            provider_name = item["name"]
-            provider_config = item["config"]
-            if "context" in provider_config:
-                provider_config["context"] = repo + "/" + provider_config["context"]
-            else:
-                provider_config["context"] = repo
-            if "kustomize_config" not in provider_config:
-                provider_config["kustomize_config"] = True
-            if "go_main" not in provider_config:
-                provider_config["go_main"] = "main.go"
-            providers[provider_name] = provider_config
 
 tilt_helper_dockerfile_header = """
 # Tilt image
@@ -184,7 +165,7 @@ def enable_provider(name):
     if provider_args:
         entrypoint.extend(provider_args)
 
-    docker_build(
+    docker_build_with_restart(
         ref = p.get("image"),
         context = context + "/.tiltbuild/",
         dockerfile_contents = dockerfile_contents,
@@ -218,10 +199,16 @@ def include_user_tilt_files():
 # Enable core cluster-api plus everything listed in 'enable_providers' in tilt-settings.json
 def enable_providers():
     local("make kustomize envsubst")
+
     user_enable_providers = settings.get("enable_providers", [])
-    union_enable_providers = {k: "" for k in user_enable_providers + always_enable_providers}.keys()
-    for name in union_enable_providers:
-        enable_provider(name)
+    provider_repos = settings.get("provider_repos", [])
+
+    for provider_repo in provider_repos:
+        provider_tiltfile = provider_repo + 'Tiltfile'
+        load(provider_tiltfile, '_provider_name')
+        if _provider_name in user_enable_providers:
+            load(provider_tiltfile, '_load_provider')
+            _load_provider()
 
 def kustomize_with_envsubst(path):
     return str(local("{} build {} | {}".format(kustomize_cmd, path, envsubst_cmd), quiet = True))
@@ -231,8 +218,7 @@ def kustomize_with_envsubst(path):
 ##############################
 include_user_tilt_files()
 
-load_provider_tiltfiles()
-
+load("ext://restart_process", "docker_build_with_restart")
 load("ext://cert_manager", "deploy_cert_manager")
 
 if settings.get("deploy_cert_manager"):

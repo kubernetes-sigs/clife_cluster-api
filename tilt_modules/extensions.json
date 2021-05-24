@@ -9,6 +9,11 @@
       "Name": "cert_manager",
       "ExtensionRegistry": "https://github.com/tilt-dev/tilt-extensions",
       "TimeFetched": "2021-02-03T16:29:09.695507+01:00"
+    },
+    {
+      "Name": "restart_process",
+      "ExtensionRegistry": "https://github.com/tilt-dev/tilt-extensions",
+      "TimeFetched": "2021-04-21T19:15:22.004873001+02:00"
     }
   ]
 }
