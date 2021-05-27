@@ -125,6 +125,6 @@ type fakeObjectMover struct {
 	moveErr error
 }
 
-func (f *fakeObjectMover) Move(namespace string, toCluster cluster.Client, dryRun bool) error {
+func (f *fakeObjectMover) Move(namespace, cluster string, toCluster cluster.Client, dryRun bool) error {
 	return f.moveErr
 }

@@ -29,6 +29,7 @@ type moveOptions struct {
 	toKubeconfigContext   string
 	namespace             string
 	dryRun                bool
+	cluster               string
 }
 
 var mo = &moveOptions{}
@@ -63,6 +64,8 @@ func init() {
 		"The namespace where the workload cluster is hosted. If unspecified, the current context's namespace is used.")
 	moveCmd.Flags().BoolVar(&mo.dryRun, "dry-run", false,
 		"Enable dry run, don't really perform the move actions")
+	moveCmd.Flags().StringVarP(&mo.cluster, "cluster", "c", "",
+		"The cluster name to move. If not specified, moves all clusters in the namespace, falling back to default behavior.")
 
 	RootCmd.AddCommand(moveCmd)
 }
@@ -83,6 +86,7 @@ func runMove() error {
 		ToKubeconfig:   client.Kubeconfig{Path: mo.toKubeconfig, Context: mo.toKubeconfigContext},
 		Namespace:      mo.namespace,
 		DryRun:         mo.dryRun,
+		Cluster:        mo.cluster,
 	}); err != nil {
 		return err
 	}

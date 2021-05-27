@@ -100,7 +100,7 @@ func (f *FakeCluster) Objs() []client.Object {
 			Name:      f.name,
 			Namespace: f.namespace,
 			// OwnerReferences: cluster, Added by the cluster controller (see below) -- RECONCILED
-			// Labels: cluster.x-k8s.io/cluster-name=cluster, Added by the cluster controller (see below) -- RECONCILED
+			Labels: map[string]string{clusterv1.ClusterLabelName: f.name},
 		},
 	}
 
@@ -147,6 +147,7 @@ func (f *FakeCluster) Objs() []client.Object {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      f.name + "-ca",
 			Namespace: f.namespace,
+			Labels:    map[string]string{clusterv1.ClusterLabelName: f.name},
 		},
 	}
 
@@ -165,6 +166,7 @@ func (f *FakeCluster) Objs() []client.Object {
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      f.name + "-cloud-config",
 				Namespace: f.namespace,
+				Labels:    map[string]string{clusterv1.ClusterLabelName: f.name},
 			},
 		}
 
@@ -196,7 +198,7 @@ func (f *FakeCluster) Objs() []client.Object {
 						UID:        cluster.UID,
 					},
 				},
-				// Labels: cluster.x-k8s.io/cluster-name=cluster MISSING??
+				Labels: map[string]string{clusterv1.ClusterLabelName: f.name},
 			},
 		}
 		objs = append(objs, kubeconfigSecret)
@@ -392,7 +394,7 @@ func (f *FakeMachinePool) Objs(cluster *clusterv1.Cluster) []client.Object {
 					UID:        cluster.UID,
 				},
 			},
-			// Labels: MISSING
+			Labels: map[string]string{clusterv1.ClusterLabelName: cluster.Name},
 		},
 	}
 
@@ -412,7 +414,7 @@ func (f *FakeMachinePool) Objs(cluster *clusterv1.Cluster) []client.Object {
 					UID:        cluster.UID,
 				},
 			},
-			// Labels: MISSING
+			Labels: map[string]string{clusterv1.ClusterLabelName: cluster.Name},
 		},
 	}
 
@@ -544,7 +546,7 @@ func (f *FakeMachineDeployment) Objs(cluster *clusterv1.Cluster) []client.Object
 					UID:        cluster.UID,
 				},
 			},
-			// Labels: MISSING
+			Labels: map[string]string{clusterv1.ClusterLabelName: cluster.Name},
 		},
 	}
 
@@ -720,7 +722,7 @@ func (f *FakeMachineSet) Objs(cluster *clusterv1.Cluster, machineDeployment *clu
 						UID:        cluster.UID,
 					},
 				},
-				// Labels: MISSING
+				Labels: map[string]string{clusterv1.ClusterLabelName: cluster.Name},
 			},
 		}
 
@@ -772,7 +774,7 @@ func (f *FakeMachine) Objs(cluster *clusterv1.Cluster, generateCerts bool, machi
 			Name:      f.name,
 			Namespace: cluster.Namespace,
 			// OwnerReferences: machine, Added by the machine controller (see below) -- RECONCILED
-			// Labels: cluster.x-k8s.io/cluster-name=cluster, Added by the machine controller (see  below) -- RECONCILED
+			Labels: map[string]string{clusterv1.ClusterLabelName: cluster.Name},
 		},
 	}
 
@@ -787,7 +789,7 @@ func (f *FakeMachine) Objs(cluster *clusterv1.Cluster, generateCerts bool, machi
 			Name:      f.name,
 			Namespace: cluster.Namespace,
 			// OwnerReferences: machine, Added by the machine controller (see below) -- RECONCILED
-			// Labels: cluster.x-k8s.io/cluster-name=cluster, Added by the machine controller (see below) -- RECONCILED
+			Labels: map[string]string{clusterv1.ClusterLabelName: cluster.Name},
 		},
 		Status: fakebootstrap.GenericBootstrapConfigStatus{
 			DataSecretName: &bootstrapDataSecretName,
@@ -880,7 +882,7 @@ func (f *FakeMachine) Objs(cluster *clusterv1.Cluster, generateCerts bool, machi
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      cluster.GetName() + "-sa",
 					Namespace: cluster.GetNamespace(),
-					// Labels: cluster.x-k8s.io/cluster-name=cluster MISSING??
+					Labels:    map[string]string{clusterv1.ClusterLabelName: cluster.Name},
 				},
 			}
 			// Set controlled by the machineBootstrap / ownership set by the bootstrap config controller -- ** NOT RECONCILED ?? **

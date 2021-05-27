@@ -454,7 +454,7 @@ func Test_getMoveSequence(t *testing.T) {
 			g.Expect(err).NotTo(HaveOccurred())
 
 			// trigger discovery the content of the source cluster
-			g.Expect(graph.Discovery("")).To(Succeed())
+			g.Expect(graph.Discovery("", "")).To(Succeed())
 
 			moveSequence := getMoveSequence(graph)
 			g.Expect(moveSequence.groups).To(HaveLen(len(tt.wantMoveGroups)))
@@ -486,7 +486,7 @@ func Test_objectMover_move_dryRun(t *testing.T) {
 			g.Expect(err).NotTo(HaveOccurred())
 
 			// trigger discovery the content of the source cluster
-			g.Expect(graph.Discovery("")).To(Succeed())
+			g.Expect(graph.Discovery("", "")).To(Succeed())
 
 			// gets a fakeProxy to an empty cluster with all the required CRDs
 			toProxy := getFakeProxyWithCRDs()
@@ -560,7 +560,7 @@ func Test_objectMover_move(t *testing.T) {
 			g.Expect(err).NotTo(HaveOccurred())
 
 			// trigger discovery the content of the source cluster
-			g.Expect(graph.Discovery("")).To(Succeed())
+			g.Expect(graph.Discovery("", "")).To(Succeed())
 
 			// gets a fakeProxy to an empty cluster with all the required CRDs
 			toProxy := getFakeProxyWithCRDs()
@@ -832,7 +832,7 @@ func Test_objectMover_checkProvisioningCompleted(t *testing.T) {
 			g.Expect(err).NotTo(HaveOccurred())
 
 			// trigger discovery the content of the source cluster
-			g.Expect(graph.Discovery("")).To(Succeed())
+			g.Expect(graph.Discovery("", "")).To(Succeed())
 
 			o := &objectMover{
 				fromProxy: graph.proxy,
@@ -1121,7 +1121,7 @@ func Test_objectMoverService_ensureNamespaces(t *testing.T) {
 			g.Expect(err).NotTo(HaveOccurred())
 
 			// Trigger discovery the content of the source cluster
-			g.Expect(graph.Discovery("")).To(Succeed())
+			g.Expect(graph.Discovery("", "")).To(Succeed())
 
 			mover := objectMover{
 				fromProxy: graph.proxy,
@@ -1157,6 +1157,133 @@ func Test_objectMoverService_ensureNamespaces(t *testing.T) {
 				// been moved to the target successfully.
 				if !exists {
 					t.Errorf("namespace: %v not found in target cluster", expected)
+				}
+			}
+		})
+	}
+}
+
+func Test_objectMoverService_moveByClusterName(t *testing.T) {
+
+	type args struct {
+		namespace, cluster string
+	}
+
+	tests := []struct {
+		name           string
+		fields         moveTestsFields
+		wantMoveGroups [][]string
+		wantErr        bool
+		args           args
+	}{
+		{
+			name: "Two clusters, should only move `foo`",
+			fields: moveTestsFields{
+				objs: func() []client.Object {
+					objs := []client.Object{}
+					objs = append(objs, test.NewFakeCluster("ns1", "foo").Objs()...)
+					objs = append(objs, test.NewFakeCluster("ns1", "bar").Objs()...)
+					return objs
+				}(),
+			},
+			wantMoveGroups: [][]string{
+				{ //group 1
+					"cluster.x-k8s.io/v1alpha4, Kind=Cluster, ns1/foo",
+				},
+				{ //group 2 (objects with ownerReferences in group 1)
+					// owned by Clusters
+					"/v1, Kind=Secret, ns1/foo-ca",
+					"/v1, Kind=Secret, ns1/foo-kubeconfig",
+					"infrastructure.cluster.x-k8s.io/v1alpha4, Kind=GenericInfrastructureCluster, ns1/foo",
+				},
+			},
+			args: args{
+				namespace: "",
+				cluster:   "foo",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			// Create an objectGraph bound a source cluster with all the CRDs for the types involved in the test.
+			graph := getObjectGraphWithObjs(tt.fields.objs)
+
+			// Get all the types to be considered for discovery
+			err := getFakeDiscoveryTypes(graph)
+			g.Expect(err).NotTo(HaveOccurred())
+
+			// trigger discovery the content of the source cluster
+			g.Expect(graph.Discovery(tt.args.namespace, tt.args.cluster)).To(Succeed())
+
+			moveSequence := getMoveSequence(graph)
+			g.Expect(moveSequence.groups).To(HaveLen(len(tt.wantMoveGroups)))
+
+			for i, gotGroup := range moveSequence.groups {
+				wantGroup := tt.wantMoveGroups[i]
+				gotNodes := []string{}
+				for _, node := range gotGroup {
+					gotNodes = append(gotNodes, string(node.identity.UID))
+				}
+
+				g.Expect(gotNodes).To(ConsistOf(wantGroup))
+			}
+
+			// gets a fakeProxy to an empty cluster with all the required CRDs
+			toProxy := getFakeProxyWithCRDs()
+
+			// Run move
+			mover := objectMover{
+				fromProxy: graph.proxy,
+			}
+
+			err = mover.move(graph, toProxy)
+			if tt.wantErr {
+				g.Expect(err).To(HaveOccurred())
+				return
+			}
+
+			g.Expect(err).NotTo(HaveOccurred())
+
+			// check that the objects are removed from the source cluster and are created in the target cluster
+			csFrom, err := graph.proxy.NewClient()
+			g.Expect(err).NotTo(HaveOccurred())
+
+			csTo, err := toProxy.NewClient()
+			g.Expect(err).NotTo(HaveOccurred())
+
+			for _, node := range graph.uidToNode {
+				key := client.ObjectKey{
+					Namespace: node.identity.Namespace,
+					Name:      node.identity.Name,
+				}
+
+				// objects are deleted from the source cluster
+				oFrom := &unstructured.Unstructured{}
+				oFrom.SetAPIVersion(node.identity.APIVersion)
+				oFrom.SetKind(node.identity.Kind)
+
+				err := csFrom.Get(ctx, key, oFrom)
+				if err == nil {
+					if oFrom.GetNamespace() != "" {
+						t.Errorf("%v not deleted in source cluster", key)
+						continue
+					}
+				} else if !apierrors.IsNotFound(err) {
+					t.Errorf("error = %v when checking for %v deleted in source cluster", err, key)
+					continue
+				}
+
+				// objects are created in the target cluster
+				oTo := &unstructured.Unstructured{}
+				oTo.SetAPIVersion(node.identity.APIVersion)
+				oTo.SetKind(node.identity.Kind)
+
+				if err := csTo.Get(ctx, key, oTo); err != nil {
+					t.Errorf("error = %v when checking for %v created in target cluster", err, key)
+					continue
 				}
 			}
 		})

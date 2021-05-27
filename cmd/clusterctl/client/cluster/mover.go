@@ -37,7 +37,7 @@ import (
 // ObjectMover defines methods for moving Cluster API objects to another management cluster.
 type ObjectMover interface {
 	// Move moves all the Cluster API objects existing in a namespace (or from all the namespaces if empty) to a target management cluster.
-	Move(namespace string, toCluster Client, dryRun bool) error
+	Move(namespace, cluster string, toCluster Client, dryRun bool) error
 }
 
 // objectMover implements the ObjectMover interface.
@@ -50,7 +50,7 @@ type objectMover struct {
 // ensure objectMover implements the ObjectMover interface.
 var _ ObjectMover = &objectMover{}
 
-func (o *objectMover) Move(namespace string, toCluster Client, dryRun bool) error {
+func (o *objectMover) Move(namespace, cluster string, toCluster Client, dryRun bool) error {
 	log := logf.Log
 	log.Info("Performing move...")
 	o.dryRun = dryRun
@@ -78,7 +78,7 @@ func (o *objectMover) Move(namespace string, toCluster Client, dryRun bool) erro
 	// Discovery the object graph for the selected types:
 	// - Nodes are defined the Kubernetes objects (Clusters, Machines etc.) identified during the discovery process.
 	// - Edges are derived by the OwnerReferences between nodes.
-	if err := objectGraph.Discovery(namespace); err != nil {
+	if err := objectGraph.Discovery(namespace, cluster); err != nil {
 		return err
 	}
 

@@ -1122,7 +1122,7 @@ func TestObjectGraph_Discovery(t *testing.T) {
 			g.Expect(err).NotTo(HaveOccurred())
 
 			// finally test discovery
-			err = graph.Discovery("")
+			err = graph.Discovery("", "cluster1")
 			if tt.wantErr {
 				g.Expect(err).To(HaveOccurred())
 				return
@@ -1239,7 +1239,77 @@ func TestObjectGraph_DiscoveryByNamespace(t *testing.T) {
 			g.Expect(err).NotTo(HaveOccurred())
 
 			// finally test discovery
-			err = graph.Discovery(tt.args.namespace)
+			err = graph.Discovery(tt.args.namespace, "")
+			if tt.wantErr {
+				g.Expect(err).To(HaveOccurred())
+				return
+			}
+
+			g.Expect(err).NotTo(HaveOccurred())
+			assertGraph(t, graph, tt.want)
+		})
+	}
+}
+
+func TestObjectGraph_DiscoveryByCluster(t *testing.T) {
+	type args struct {
+		namespace string
+		cluster   string
+		objs      []client.Object
+	}
+	var tests = []struct {
+		name    string
+		args    args
+		want    wantGraph
+		wantErr bool
+	}{
+		{
+			name: "two clusters, in same namespace, read only 1 by cluster name",
+			args: args{
+				namespace: "ns1", // read only from ns1
+				objs: func() []client.Object {
+					objs := []client.Object{}
+					objs = append(objs, test.NewFakeCluster("ns1", "cluster1").Objs()...)
+					objs = append(objs, test.NewFakeCluster("ns2", "cluster1").Objs()...)
+					return objs
+				}(),
+			},
+			want: wantGraph{
+				nodes: map[string]wantGraphItem{
+					"cluster.x-k8s.io/v1alpha4, Kind=Cluster, ns1/cluster1": {},
+					"infrastructure.cluster.x-k8s.io/v1alpha4, Kind=GenericInfrastructureCluster, ns1/cluster1": {
+						owners: []string{
+							"cluster.x-k8s.io/v1alpha4, Kind=Cluster, ns1/cluster1",
+						},
+					},
+					"/v1, Kind=Secret, ns1/cluster1-ca": {
+						softOwners: []string{
+							"cluster.x-k8s.io/v1alpha4, Kind=Cluster, ns1/cluster1", //NB. this secret is not linked to the cluster through owner ref
+						},
+					},
+					"/v1, Kind=Secret, ns1/cluster1-kubeconfig": {
+						owners: []string{
+							"cluster.x-k8s.io/v1alpha4, Kind=Cluster, ns1/cluster1",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			// Create an objectGraph bound to a source cluster with all the CRDs for the types involved in the test.
+			graph := getObjectGraphWithObjs(tt.args.objs)
+
+			// Get all the types to be considered for discovery
+			err := getFakeDiscoveryTypes(graph)
+			g.Expect(err).NotTo(HaveOccurred())
+
+			// finally test discovery
+			err = graph.Discovery(tt.args.namespace, tt.args.cluster)
 			if tt.wantErr {
 				g.Expect(err).To(HaveOccurred())
 				return

@@ -36,6 +36,9 @@ type MoveOptions struct {
 
 	// DryRun means the move action is a dry run, no real action will be performed
 	DryRun bool
+
+	// Cluster means the name of the cluster to move
+	Cluster string
 }
 
 func (c *clusterctlClient) Move(options MoveOptions) error {
@@ -83,7 +86,7 @@ func (c *clusterctlClient) Move(options MoveOptions) error {
 		options.Namespace = currentNamespace
 	}
 
-	if err := fromCluster.ObjectMover().Move(options.Namespace, toCluster, options.DryRun); err != nil {
+	if err := fromCluster.ObjectMover().Move(options.Namespace, options.Cluster, toCluster, options.DryRun); err != nil {
 		return err
 	}
 
