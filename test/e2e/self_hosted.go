@@ -38,11 +38,12 @@ import (
 
 // SelfHostedSpecInput is the input for SelfHostedSpec.
 type SelfHostedSpecInput struct {
-	E2EConfig             *clusterctl.E2EConfig
-	ClusterctlConfigPath  string
-	BootstrapClusterProxy framework.ClusterProxy
-	ArtifactFolder        string
-	SkipCleanup           bool
+	E2EConfig                *clusterctl.E2EConfig
+	ClusterctlConfigPath     string
+	BootstrapClusterProxy    framework.ClusterProxy
+	ArtifactFolder           string
+	SkipCleanup              bool
+	ControlPlaneMachineCount int64
 }
 
 // SelfHostedSpec implements a test that verifies Cluster API creating a cluster, pivoting to a self-hosted cluster.
@@ -67,7 +68,11 @@ func SelfHostedSpec(ctx context.Context, inputGetter func() SelfHostedSpecInput)
 		Expect(input.ClusterctlConfigPath).To(BeAnExistingFile(), "Invalid argument. input.ClusterctlConfigPath must be an existing file when calling %s spec", specName)
 		Expect(input.BootstrapClusterProxy).ToNot(BeNil(), "Invalid argument. input.BootstrapClusterProxy can't be nil when calling %s spec", specName)
 		Expect(os.MkdirAll(input.ArtifactFolder, 0755)).To(Succeed(), "Invalid argument. input.ArtifactFolder can't be created for %s spec", specName)
+		Expect(input.ControlPlaneMachineCount).ToNot(BeZero())
 		Expect(input.E2EConfig.Variables).To(HaveKey(KubernetesVersion))
+		Expect(input.E2EConfig.Variables).To(HaveKey(KubernetesVersionUpgradeTo))
+		Expect(input.E2EConfig.Variables).To(HaveKey(EtcdVersionUpgradeTo))
+		Expect(input.E2EConfig.Variables).To(HaveKey(CoreDNSVersionUpgradeTo))
 
 		// Setup a Namespace where to host objects for this spec and create a watcher for the namespace events.
 		namespace, cancelWatches = setupSpecNamespace(ctx, specName, input.BootstrapClusterProxy, input.ArtifactFolder)
@@ -88,7 +93,7 @@ func SelfHostedSpec(ctx context.Context, inputGetter func() SelfHostedSpecInput)
 				Namespace:                namespace.Name,
 				ClusterName:              fmt.Sprintf("%s-%s", specName, util.RandomString(6)),
 				KubernetesVersion:        input.E2EConfig.GetVariable(KubernetesVersion),
-				ControlPlaneMachineCount: pointer.Int64Ptr(1),
+				ControlPlaneMachineCount: pointer.Int64Ptr(input.ControlPlaneMachineCount),
 				WorkerMachineCount:       pointer.Int64Ptr(1),
 			},
 			WaitForClusterIntervals:      input.E2EConfig.GetIntervals(specName, "wait-cluster"),
@@ -157,12 +162,25 @@ func SelfHostedSpec(ctx context.Context, inputGetter func() SelfHostedSpecInput)
 			Name:      cluster.Name,
 		}, input.E2EConfig.GetIntervals(specName, "wait-cluster")...)
 
-		controlPlane := framework.GetKubeadmControlPlaneByCluster(ctx, framework.GetKubeadmControlPlaneByClusterInput{
+		selfHostedControlPlane := framework.GetKubeadmControlPlaneByCluster(ctx, framework.GetKubeadmControlPlaneByClusterInput{
 			Lister:      selfHostedClusterProxy.GetClient(),
 			ClusterName: selfHostedCluster.Name,
 			Namespace:   selfHostedCluster.Namespace,
 		})
-		Expect(controlPlane).ToNot(BeNil())
+		Expect(selfHostedControlPlane).ToNot(BeNil())
+
+		By("Upgrading the self hosted control-plane")
+		framework.UpgradeControlPlaneAndWaitForUpgrade(ctx, framework.UpgradeControlPlaneAndWaitForUpgradeInput{
+			ClusterProxy:                selfHostedClusterProxy,
+			Cluster:                     selfHostedCluster,
+			ControlPlane:                selfHostedControlPlane,
+			EtcdImageTag:                input.E2EConfig.GetVariable(EtcdVersionUpgradeTo),
+			DNSImageTag:                 input.E2EConfig.GetVariable(CoreDNSVersionUpgradeTo),
+			KubernetesUpgradeVersion:    input.E2EConfig.GetVariable(KubernetesVersionUpgradeTo),
+			WaitForMachinesToBeUpgraded: input.E2EConfig.GetIntervals(specName, "wait-machine-upgrade"),
+			WaitForDNSUpgrade:           input.E2EConfig.GetIntervals(specName, "wait-machine-upgrade"),
+			WaitForEtcdUpgrade:          input.E2EConfig.GetIntervals(specName, "wait-machine-upgrade"),
+		})
 
 		By("PASSED!")
 	})

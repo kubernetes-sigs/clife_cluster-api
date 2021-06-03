@@ -24,16 +24,28 @@ import (
 	. "github.com/onsi/ginkgo"
 )
 
-var _ = Describe("When testing Cluster API working on self-hosted clusters", func() {
-
+var _ = Describe("When testing Cluster API working on single control plane self-hosted clusters", func() {
 	SelfHostedSpec(context.TODO(), func() SelfHostedSpecInput {
 		return SelfHostedSpecInput{
-			E2EConfig:             e2eConfig,
-			ClusterctlConfigPath:  clusterctlConfigPath,
-			BootstrapClusterProxy: bootstrapClusterProxy,
-			ArtifactFolder:        artifactFolder,
-			SkipCleanup:           skipCleanup,
+			E2EConfig:                e2eConfig,
+			ClusterctlConfigPath:     clusterctlConfigPath,
+			BootstrapClusterProxy:    bootstrapClusterProxy,
+			ArtifactFolder:           artifactFolder,
+			SkipCleanup:              skipCleanup,
+			ControlPlaneMachineCount: 1,
 		}
 	})
+})
 
+var _ = Describe("When testing Cluster API working on HA self-hosted clusters", func() {
+	SelfHostedSpec(context.TODO(), func() SelfHostedSpecInput {
+		return SelfHostedSpecInput{
+			E2EConfig:                e2eConfig,
+			ClusterctlConfigPath:     clusterctlConfigPath,
+			BootstrapClusterProxy:    bootstrapClusterProxy,
+			ArtifactFolder:           artifactFolder,
+			SkipCleanup:              skipCleanup,
+			ControlPlaneMachineCount: 3,
+		}
+	})
 })
