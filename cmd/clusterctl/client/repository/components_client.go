@@ -83,5 +83,5 @@ func (f *componentsClient) Get(options ComponentsOptions) (Components, error) {
 		log.Info("Using", "Override", path, "Provider", f.provider.ManifestLabel(), "Version", options.Version)
 	}
 
-	return NewComponents(ComponentsInput{f.provider, f.configClient, f.processor, file, options})
+	return NewComponents(ComponentsInput{f.provider, f.configClient, f.processor, file, nil, nil, options})
 }

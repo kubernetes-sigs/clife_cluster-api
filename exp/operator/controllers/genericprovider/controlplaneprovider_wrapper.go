@@ -65,8 +65,8 @@ type ControlPlaneProviderListWrapper struct {
 
 func (c *ControlPlaneProviderListWrapper) GetItems() []GenericProvider {
 	providers := []GenericProvider{}
-	for _, provider := range c.Items {
-		providers = append(providers, &ControlPlaneProviderWrapper{&provider})
+	for pi := range c.Items {
+		providers = append(providers, &ControlPlaneProviderWrapper{&c.Items[pi]})
 	}
 
 	return providers

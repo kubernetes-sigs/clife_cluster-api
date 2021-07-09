@@ -23,6 +23,15 @@ const (
 	PreflightCheckCondition clusterv1.ConditionType = "PreflightCheckPassed"
 
 	// MoreThanOneProviderInstanceExistsReason (Severity=Info) documents that more than one instance of provider
-	// exists in the cluster
+	// exists in the cluster.
 	MoreThanOneProviderInstanceExistsReason = "MoreThanOneExists"
+
+	// UnknownProviderReason documents that the provider name is not the name of a know provider.
+	UnknownProviderReason = "UnknownProvider"
+
+	// ComponentsGatherErrorReason documents that an error occurred gathering the componets.
+	ComponentsGatherErrorReason = "ComponentsGatherError"
+
+	// WaitingForCoreProviderReadyReason documents that the provider is waiting for the core provider to be ready.
+	WaitingForCoreProviderReadyReason = "WaitingForCoreProviderReady"
 )

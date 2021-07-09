@@ -182,11 +182,13 @@ type ComponentsOptions struct {
 
 // ComponentsInput represents all the inputs required by NewComponents.
 type ComponentsInput struct {
-	Provider     config.Provider
-	ConfigClient config.Client
-	Processor    yaml.Processor
-	RawYaml      []byte
-	Options      ComponentsOptions
+	Provider            config.Provider
+	ConfigClient        config.Client
+	Processor           yaml.Processor
+	RawYaml             []byte
+	InstanceObjModifier func([]unstructured.Unstructured) ([]unstructured.Unstructured, error)
+	SharedObjModifier   func([]unstructured.Unstructured) ([]unstructured.Unstructured, error)
+	Options             ComponentsOptions
 }
 
 // NewComponents returns a new objects embedding a component YAML file
@@ -263,6 +265,9 @@ func NewComponents(input ComponentsInput) (*components, error) {
 	// add a Namespace object if missing (ensure the targetNamespace will be created)
 	instanceObjs = addNamespaceIfMissing(instanceObjs, input.Options.TargetNamespace)
 
+	// add a Namespace object if missing (ensure the WebhookNamespaceName will be created)
+	sharedObjs = addNamespaceIfMissing(sharedObjs, WebhookNamespaceName)
+
 	// fix Namespace name in all the objects
 	instanceObjs = fixTargetNamespace(instanceObjs, input.Options.TargetNamespace)
 
@@ -298,6 +303,18 @@ func NewComponents(input ComponentsInput) (*components, error) {
 	// a provider can delete all the web-hooks.
 	sharedObjs = fixSharedLabels(sharedObjs)
 
+	if input.InstanceObjModifier != nil {
+		instanceObjs, err = input.InstanceObjModifier(instanceObjs)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to modify instance objects")
+		}
+	}
+	if input.SharedObjModifier != nil {
+		sharedObjs, err = input.SharedObjModifier(sharedObjs)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to modify shared objects")
+		}
+	}
 	return &components{
 		Provider:          input.Provider,
 		version:           input.Options.Version,
@@ -369,16 +386,19 @@ func addNamespaceIfMissing(objs []unstructured.Unstructured, targetNamespace str
 		}
 	}
 
-	// if there isn't an object with Kind Namespace, add it
+	// if there isn't an object with Kind Namespace, prepend it
 	if !namespaceObjectFound {
-		objs = append(objs, unstructured.Unstructured{
-			Object: map[string]interface{}{
-				"kind": namespaceKind,
-				"metadata": map[string]interface{}{
-					"name": targetNamespace,
+		objs = append([]unstructured.Unstructured{
+			{
+				Object: map[string]interface{}{
+					"apiVersion": "v1",
+					"kind":       namespaceKind,
+					"metadata": map[string]interface{}{
+						"name": targetNamespace,
+					},
 				},
 			},
-		})
+		}, objs...)
 	}
 
 	return objs
