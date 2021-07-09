@@ -8,3 +8,6 @@ resources:
 - group: controlplane
   version: v1alpha4
   kind: KubeadmControlPlane
+- group: controlplane
+  kind: KubeadmControlPlaneTemplate
+  version: v1alpha4
