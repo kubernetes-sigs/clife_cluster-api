@@ -60,19 +60,11 @@ func TestFuzzyConversion(t *testing.T) {
 
 func fuzzFuncs(_ runtimeserializer.CodecFactory) []interface{} {
 	return []interface{}{
-		nodeRegistrationOptionsFuzzer,
 		initConfigurationFuzzer,
 		joinControlPlanesFuzzer,
 		dnsFuzzer,
 		clusterConfigurationFuzzer,
 	}
-}
-
-func nodeRegistrationOptionsFuzzer(obj *NodeRegistrationOptions, c fuzz.Continue) {
-	c.FuzzNoCustom(obj)
-
-	// NodeRegistrationOptions.IgnorePreflightErrors does not exists in v1alpha4, so setting it to nil in order to avoid v1beta2 --> v1alpha4 --> v1beta2 round trip errors.
-	obj.IgnorePreflightErrors = nil
 }
 
 func joinControlPlanesFuzzer(obj *JoinControlPlane, c fuzz.Continue) {

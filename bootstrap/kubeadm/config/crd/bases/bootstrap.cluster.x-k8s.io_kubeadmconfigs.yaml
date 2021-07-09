@@ -1571,6 +1571,12 @@ spec:
                           info. This information will be annotated to the Node API
                           object, for later re-use
                         type: string
+                      ignorePreflightErrors:
+                        description: IgnorePreflightErrors provides a slice of pre-flight
+                          errors to be ignored when the current node is registered.
+                        items:
+                          type: string
+                        type: array
                       kubeletExtraArgs:
                         additionalProperties:
                           type: string
@@ -1747,6 +1753,12 @@ spec:
                           info. This information will be annotated to the Node API
                           object, for later re-use
                         type: string
+                      ignorePreflightErrors:
+                        description: IgnorePreflightErrors provides a slice of pre-flight
+                          errors to be ignored when the current node is registered.
+                        items:
+                          type: string
+                        type: array
                       kubeletExtraArgs:
                         additionalProperties:
                           type: string

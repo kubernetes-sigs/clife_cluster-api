@@ -90,3 +90,23 @@ func Convert_v1beta1_ClusterConfiguration_To_v1alpha4_ClusterConfiguration(in *k
 	// ClusterConfiguration.UseHyperKubeImage was removed in kubeadm v1alpha4 API
 	return kubeadmbootstrapv1beta1.Convert_v1beta1_ClusterConfiguration_To_v1alpha4_ClusterConfiguration(in, out, s)
 }
+
+func Convert_v1alpha4_InitConfiguration_To_v1beta1_InitConfiguration(in *kubeadmbootstrapv1alpha4.InitConfiguration, out *kubeadmbootstrapv1beta1.InitConfiguration, s apiconversion.Scope) error {
+	// NodeRegistrationOptions.IgnorePreflightErrors does not exist in kubeadm v1beta1 API
+	return kubeadmbootstrapv1beta1.Convert_v1alpha4_InitConfiguration_To_v1beta1_InitConfiguration(in, out, s)
+}
+
+func Convert_v1beta1_InitConfiguration_To_v1alpha4_InitConfiguration(in *kubeadmbootstrapv1beta1.InitConfiguration, out *kubeadmbootstrapv1alpha4.InitConfiguration, s apiconversion.Scope) error {
+	// NodeRegistrationOptions.IgnorePreflightErrors does not exist in kubeadm v1beta1 API
+	return kubeadmbootstrapv1beta1.Convert_v1beta1_InitConfiguration_To_v1alpha4_InitConfiguration(in, out, s)
+}
+
+func Convert_v1alpha4_JoinConfiguration_To_v1beta1_JoinConfiguration(in *kubeadmbootstrapv1alpha4.JoinConfiguration, out *kubeadmbootstrapv1beta1.JoinConfiguration, s apiconversion.Scope) error {
+	// NodeRegistrationOptions.IgnorePreflightErrors does not exist in kubeadm v1beta1 API
+	return kubeadmbootstrapv1beta1.Convert_v1alpha4_JoinConfiguration_To_v1beta1_JoinConfiguration(in, out, s)
+}
+
+func Convert_v1beta1_JoinConfiguration_To_v1alpha4_JoinConfiguration(in *kubeadmbootstrapv1beta1.JoinConfiguration, out *kubeadmbootstrapv1alpha4.JoinConfiguration, s apiconversion.Scope) error {
+	// NodeRegistrationOptions.IgnorePreflightErrors does not exist in kubeadm v1beta1 API
+	return kubeadmbootstrapv1beta1.Convert_v1beta1_JoinConfiguration_To_v1alpha4_JoinConfiguration(in, out, s)
+}
