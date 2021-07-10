@@ -1,0 +1,139 @@
+# Default cluster with KCP and a machine deployment using hollow machines
+apiVersion: cluster.x-k8s.io/v1alpha4
+kind: Cluster
+metadata:
+  name: hollow-cluster
+spec:
+  clusterNetwork:
+    services:
+      cidrBlocks: ["10.128.0.0/12"]
+    pods:
+      cidrBlocks: ["192.168.0.0/16"]
+    serviceDomain: "cluster.local"
+  infrastructureRef:
+    apiVersion: infrastructure.cluster.x-k8s.io/v1alpha4
+    kind: DockerCluster
+    name: hollow-cluster
+  controlPlaneRef:
+    kind: KubeadmControlPlane
+    apiVersion: controlplane.cluster.x-k8s.io/v1alpha4
+    name: "hollow-cluster-control-plane"
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha4
+kind: DockerCluster
+metadata:
+  name: hollow-cluster
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha4
+kind: DockerMachineTemplate
+metadata:
+  name: "hollow-cluster-control-plane"
+spec:
+  template:
+    spec:
+      extraMounts:
+        - containerPath: "/var/run/docker.sock"
+          hostPath: "/var/run/docker.sock"
+---
+kind: KubeadmControlPlane
+apiVersion: controlplane.cluster.x-k8s.io/v1alpha4
+metadata:
+  name: "hollow-cluster-control-plane"
+  labels:
+    nodepool: "pool0"
+spec:
+  replicas: 1
+  machineTemplate:
+    infrastructureRef:
+      kind: DockerMachineTemplate
+      apiVersion: infrastructure.cluster.x-k8s.io/v1alpha4
+      name: "hollow-cluster-control-plane"
+  kubeadmConfigSpec:
+    clusterConfiguration:
+      controllerManager:
+        extraArgs: {enable-hostpath-provisioner: 'true'}
+      apiServer:
+        certSANs: [localhost, 127.0.0.1]
+    initConfiguration:
+      nodeRegistration:
+        criSocket: /var/run/containerd/containerd.sock
+        kubeletExtraArgs:
+          # We have to pin the cgroupDriver to cgroupfs as kubeadm >=1.21 defaults to systemd
+          # kind will implement systemd support in: https://github.com/kubernetes-sigs/kind/issues/1726
+          cgroup-driver: cgroupfs
+          eviction-hard: nodefs.available<0%,nodefs.inodesFree<0%,imagefs.available<0%
+    joinConfiguration:
+      nodeRegistration:
+        criSocket: /var/run/containerd/containerd.sock
+        kubeletExtraArgs:
+          # We have to pin the cgroupDriver to cgroupfs as kubeadm >=1.21 defaults to systemd
+          # kind will implement systemd support in: https://github.com/kubernetes-sigs/kind/issues/1726
+          cgroup-driver: cgroupfs
+          eviction-hard: nodefs.available<0%,nodefs.inodesFree<0%,imagefs.available<0%
+  version: v1.20.2
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha4
+kind: HollowMachineTemplate
+metadata:
+  name: hollow-cluster-md-0
+spec:
+  template:
+    spec:
+      # if you don't want to use an external cluster for hosting hollow machines pods, then comment the the next line
+      # NOTE: in order to run kubemark on this cluster, it is required to install a CNI.
+      externalCluster: external-cluster
+      kubemark:
+        # if you want to use a custom kubemark image, uncomment the the next line and set the value, otherwise
+        # gcr.io/k8s-staging-cluster-api/kubemark:{Kubernetes version} will be used.
+        # NOTE: this image is not yet published, see kubemark for building it locally
+        # image:
+        pod:
+          # if you want to run hollow machines pods on control plane machines, uncomment/edit the following lines.
+          # tolerations:
+          #  - key: node-role.kubernetes.io/master
+          #    effect: NoSchedule
+          # if you want to setup specific memory limits for the hollow machines pods, uncomment the next lines.
+          #containers:
+          #  hollowKubelet:
+          #    args:
+          #    resources:
+          #  hollowProxy:
+          #    args:
+          #    resources:
+---
+apiVersion: bootstrap.cluster.x-k8s.io/v1alpha4
+kind: KubeadmConfigTemplate
+metadata:
+  name: hollow-cluster-md-0
+spec:
+  template:
+    spec:
+      joinConfiguration:
+        nodeRegistration:
+          kubeletExtraArgs: {eviction-hard: 'nodefs.available<0%,nodefs.inodesFree<0%,imagefs.available<0%'}
+---
+apiVersion: cluster.x-k8s.io/v1alpha4
+kind: MachineDeployment
+metadata:
+  name: hollow-cluster-md-0
+spec:
+  clusterName: hollow-cluster
+  replicas: 2
+  selector:
+    matchLabels:
+  template:
+    metadata:
+      labels:
+        nodepool: "pool1"
+    spec:
+      clusterName: hollow-cluster
+      version: v1.20.2
+      bootstrap:
+        configRef:
+          name: hollow-cluster-md-0
+          apiVersion: bootstrap.cluster.x-k8s.io/v1alpha4
+          kind: KubeadmConfigTemplate
+      infrastructureRef:
+        name: hollow-cluster-md-0
+        apiVersion: infrastructure.cluster.x-k8s.io/v1alpha4
+        kind: HollowMachineTemplate

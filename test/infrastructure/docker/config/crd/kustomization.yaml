@@ -8,10 +8,12 @@ commonLabels:
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-- bases/infrastructure.cluster.x-k8s.io_dockermachines.yaml
 - bases/infrastructure.cluster.x-k8s.io_dockerclusters.yaml
+- bases/infrastructure.cluster.x-k8s.io_dockermachines.yaml
 - bases/infrastructure.cluster.x-k8s.io_dockermachinetemplates.yaml
 - bases/infrastructure.cluster.x-k8s.io_dockermachinepools.yaml
+- bases/infrastructure.cluster.x-k8s.io_hollowmachines.yaml
+- bases/infrastructure.cluster.x-k8s.io_hollowmachinetemplates.yaml
 # +kubebuilder:scaffold:crdkustomizeresource
 
 patchesStrategicMerge: []
