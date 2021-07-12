@@ -17,14 +17,22 @@ limitations under the License.
 package cluster
 
 import (
+	"context"
+	"time"
+
 	"github.com/pkg/errors"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/version"
+	"k8s.io/apimachinery/pkg/util/wait"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha4"
 	clusterctlv1 "sigs.k8s.io/cluster-api/cmd/clusterctl/api/v1alpha3"
 	"sigs.k8s.io/cluster-api/cmd/clusterctl/client/config"
 	"sigs.k8s.io/cluster-api/cmd/clusterctl/client/repository"
 	logf "sigs.k8s.io/cluster-api/cmd/clusterctl/log"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // ProviderInstaller defines methods for enforcing consistency rules for provider installation.
@@ -72,6 +80,11 @@ func (i *providerInstaller) Install() ([]repository.Components, error) {
 
 		ret = append(ret, components)
 	}
+
+	if err := i.waitForReady(); err != nil {
+		return ret, err
+	}
+
 	return ret, nil
 }
 
@@ -82,12 +95,70 @@ func installComponentsAndUpdateInventory(components repository.Components, provi
 	inventoryObject := components.InventoryObject()
 
 	log.V(1).Info("Creating objects", "Provider", components.ManifestLabel(), "Version", components.Version(), "TargetNamespace", components.TargetNamespace())
+	// log.Info("Installing the follow objects:")
+	// for _, obj := range components.Objs() {
+	// 	if obj.GroupVersionKind().Kind == "Deployment" {
+	// 		log.Info(fmt.Sprintf("-------\nname: %v\ngvk: %+v\nnamespace: %v\n", obj.GetName(), obj.GroupVersionKind(), obj.GetNamespace()))
+	// 	}
+	// }
 	if err := providerComponents.Create(components.Objs()); err != nil {
 		return err
 	}
 
 	log.V(1).Info("Creating inventory entry", "Provider", components.ManifestLabel(), "Version", components.Version(), "TargetNamespace", components.TargetNamespace())
 	return providerInventory.Create(inventoryObject)
+}
+
+// waitForReady waits till the installed components are ready.
+func (i *providerInstaller) waitForReady() error {
+	log := logf.Log
+	log.Info("Waiting for providers to be available...")
+
+	if err := i.waitDeploymentsReady(); err != nil {
+		return err
+	}
+
+	// check for services too?
+
+	return nil
+}
+
+// waitDeploymentsReady waits till the installed deployments are ready.
+func (i *providerInstaller) waitDeploymentsReady() error {
+	for _, components := range i.installQueue {
+		for _, obj := range components.Objs() {
+			if obj.GroupVersionKind().Kind == "Deployment" {
+				if err := i.waitDeploymentReady(obj); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func (i *providerInstaller) waitDeploymentReady(deployment unstructured.Unstructured) error {
+	err := wait.Poll(500*time.Millisecond, 30*time.Second, func() (bool, error) {
+		c, err := i.proxy.NewClient()
+		if err != nil {
+			return false, err
+		}
+		key := client.ObjectKey{
+			Namespace: deployment.GetNamespace(),
+			Name:      deployment.GetName(),
+		}
+		dep := &appsv1.Deployment{}
+		if err := c.Get(context.TODO(), key, dep); err != nil {
+			return false, err
+		}
+		for _, c := range dep.Status.Conditions {
+			if c.Type == appsv1.DeploymentAvailable && c.Status == corev1.ConditionTrue {
+				return true, nil
+			}
+		}
+		return false, nil
+	})
+	return err
 }
 
 func (i *providerInstaller) Validate() error {
