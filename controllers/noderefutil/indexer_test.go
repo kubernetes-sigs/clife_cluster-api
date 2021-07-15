@@ -20,10 +20,10 @@ import (
 	"testing"
 
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/utils/pointer"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha4"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	corev1 "k8s.io/api/core/v1"
 )
 
 func TestIndexMachineByNodeName(t *testing.T) {
@@ -55,6 +55,94 @@ func TestIndexMachineByNodeName(t *testing.T) {
 			g := NewWithT(t)
 			got := indexMachineByNodeName(tc.object)
 			g.Expect(got).To(ConsistOf(tc.expected))
+		})
+	}
+}
+
+func TestIndexNodeByProviderID(t *testing.T) {
+	validProviderID, err := NewProviderID("aws://region/zone/id")
+	g := NewWithT(t)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	testCases := []struct {
+		name     string
+		object   client.Object
+		expected []string
+	}{
+		{
+			name:     "Node has no providerID",
+			object:   &corev1.Node{},
+			expected: nil,
+		},
+		{
+			name: "Node has invalid providerID",
+			object: &corev1.Node{
+				Spec: corev1.NodeSpec{
+					ProviderID: "invalid",
+				},
+			},
+			expected: nil,
+		},
+		{
+			name: "Node has valid providerID",
+			object: &corev1.Node{
+				Spec: corev1.NodeSpec{
+					ProviderID: validProviderID.String(),
+				},
+			},
+			expected: []string{validProviderID.IndexKey()},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+			got := IndexNodeByProviderID(tc.object)
+			g.Expect(got).To(BeEquivalentTo(tc.expected))
+		})
+	}
+}
+
+func TestIndexMachineByProviderID(t *testing.T) {
+	validProviderID, err := NewProviderID("aws://region/zone/id")
+	g := NewWithT(t)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	testCases := []struct {
+		name     string
+		object   client.Object
+		expected []string
+	}{
+		{
+			name:     "Machine has no providerID",
+			object:   &clusterv1.Machine{},
+			expected: nil,
+		},
+		{
+			name: "Machine has invalid providerID",
+			object: &clusterv1.Machine{
+				Spec: clusterv1.MachineSpec{
+					ProviderID: pointer.String("invalid"),
+				},
+			},
+			expected: nil,
+		},
+		{
+			name: "Machine has valid providerID",
+			object: &clusterv1.Machine{
+				Spec: clusterv1.MachineSpec{
+					ProviderID: pointer.String(validProviderID.String()),
+				},
+			},
+			expected: []string{validProviderID.IndexKey()},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+			got := IndexMachineByProviderID(tc.object)
+			g.Expect(got).To(BeEquivalentTo(tc.expected))
 		})
 	}
 }

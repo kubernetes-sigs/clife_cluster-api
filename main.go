@@ -230,6 +230,11 @@ func setupIndexes(ctx context.Context, mgr ctrl.Manager) {
 		setupLog.Error(err, "unable to setup index")
 		os.Exit(1)
 	}
+
+	if err := noderefutil.AddMachineProviderIDIndex(ctx, mgr); err != nil {
+		setupLog.Error(err, "unable to setup index")
+		os.Exit(1)
+	}
 }
 
 func setupReconcilers(ctx context.Context, mgr ctrl.Manager) {
