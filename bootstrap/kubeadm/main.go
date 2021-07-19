@@ -39,6 +39,7 @@ import (
 	"sigs.k8s.io/cluster-api/controllers/remote"
 	expv1 "sigs.k8s.io/cluster-api/exp/api/v1alpha4"
 	"sigs.k8s.io/cluster-api/feature"
+	"sigs.k8s.io/cluster-api/util/fieldowner"
 	"sigs.k8s.io/cluster-api/version"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -193,7 +194,7 @@ func setupChecks(mgr ctrl.Manager) {
 
 func setupReconcilers(ctx context.Context, mgr ctrl.Manager) {
 	if err := (&kubeadmbootstrapcontrollers.KubeadmConfigReconciler{
-		Client: mgr.GetClient(),
+		Client: fieldowner.Wrap(mgr.GetClient(), kubeadmbootstrapcontrollers.KubeadmConfigControllerName),
 	}).SetupWithManager(ctx, mgr, concurrency(kubeadmConfigConcurrency)); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "KubeadmConfig")
 		os.Exit(1)

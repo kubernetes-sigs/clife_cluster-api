@@ -45,6 +45,7 @@ import (
 	expv1 "sigs.k8s.io/cluster-api/exp/api/v1alpha4"
 	expcontrollers "sigs.k8s.io/cluster-api/exp/controllers"
 	"sigs.k8s.io/cluster-api/feature"
+	"sigs.k8s.io/cluster-api/util/fieldowner"
 	"sigs.k8s.io/cluster-api/version"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -253,14 +254,14 @@ func setupReconcilers(ctx context.Context, mgr ctrl.Manager) {
 	}
 
 	if err := (&controllers.ClusterReconciler{
-		Client:           mgr.GetClient(),
+		Client:           fieldowner.Wrap(mgr.GetClient(), "cluster-controller"),
 		WatchFilterValue: watchFilterValue,
 	}).SetupWithManager(ctx, mgr, concurrency(clusterConcurrency)); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Cluster")
 		os.Exit(1)
 	}
 	if err := (&controllers.MachineReconciler{
-		Client:           mgr.GetClient(),
+		Client:           fieldowner.Wrap(mgr.GetClient(), controllers.MachineControllerName),
 		Tracker:          tracker,
 		WatchFilterValue: watchFilterValue,
 	}).SetupWithManager(ctx, mgr, concurrency(machineConcurrency)); err != nil {
@@ -268,7 +269,7 @@ func setupReconcilers(ctx context.Context, mgr ctrl.Manager) {
 		os.Exit(1)
 	}
 	if err := (&controllers.MachineSetReconciler{
-		Client:           mgr.GetClient(),
+		Client:           fieldowner.Wrap(mgr.GetClient(), "machineset-controller"),
 		Tracker:          tracker,
 		WatchFilterValue: watchFilterValue,
 	}).SetupWithManager(ctx, mgr, concurrency(machineSetConcurrency)); err != nil {
@@ -276,7 +277,7 @@ func setupReconcilers(ctx context.Context, mgr ctrl.Manager) {
 		os.Exit(1)
 	}
 	if err := (&controllers.MachineDeploymentReconciler{
-		Client:           mgr.GetClient(),
+		Client:           fieldowner.Wrap(mgr.GetClient(), "machinedeployment-controller"),
 		WatchFilterValue: watchFilterValue,
 	}).SetupWithManager(ctx, mgr, concurrency(machineDeploymentConcurrency)); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "MachineDeployment")
@@ -285,7 +286,7 @@ func setupReconcilers(ctx context.Context, mgr ctrl.Manager) {
 
 	if feature.Gates.Enabled(feature.MachinePool) {
 		if err := (&expcontrollers.MachinePoolReconciler{
-			Client:           mgr.GetClient(),
+			Client:           fieldowner.Wrap(mgr.GetClient(), expcontrollers.MachinePoolControllerName),
 			WatchFilterValue: watchFilterValue,
 		}).SetupWithManager(ctx, mgr, concurrency(machinePoolConcurrency)); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "MachinePool")
@@ -295,7 +296,7 @@ func setupReconcilers(ctx context.Context, mgr ctrl.Manager) {
 
 	if feature.Gates.Enabled(feature.ClusterResourceSet) {
 		if err := (&addonscontrollers.ClusterResourceSetReconciler{
-			Client:           mgr.GetClient(),
+			Client:           fieldowner.Wrap(mgr.GetClient(), "cluster-resource-set-controller"),
 			Tracker:          tracker,
 			WatchFilterValue: watchFilterValue,
 		}).SetupWithManager(ctx, mgr, concurrency(clusterResourceSetConcurrency)); err != nil {
@@ -303,7 +304,7 @@ func setupReconcilers(ctx context.Context, mgr ctrl.Manager) {
 			os.Exit(1)
 		}
 		if err := (&addonscontrollers.ClusterResourceSetBindingReconciler{
-			Client:           mgr.GetClient(),
+			Client:           fieldowner.Wrap(mgr.GetClient(), "cluster-resource-set-binding-controller"),
 			WatchFilterValue: watchFilterValue,
 		}).SetupWithManager(ctx, mgr, concurrency(clusterResourceSetConcurrency)); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "ClusterResourceSetBinding")
@@ -312,7 +313,7 @@ func setupReconcilers(ctx context.Context, mgr ctrl.Manager) {
 	}
 
 	if err := (&controllers.MachineHealthCheckReconciler{
-		Client:           mgr.GetClient(),
+		Client:           fieldowner.Wrap(mgr.GetClient(), "machinehealthcheck-controller"),
 		Tracker:          tracker,
 		WatchFilterValue: watchFilterValue,
 	}).SetupWithManager(ctx, mgr, concurrency(machineHealthCheckConcurrency)); err != nil {

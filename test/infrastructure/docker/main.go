@@ -41,6 +41,7 @@ import (
 	infraexpv1old "sigs.k8s.io/cluster-api/test/infrastructure/docker/exp/api/v1alpha3"
 	infraexpv1 "sigs.k8s.io/cluster-api/test/infrastructure/docker/exp/api/v1alpha4"
 	expcontrollers "sigs.k8s.io/cluster-api/test/infrastructure/docker/exp/controllers"
+	"sigs.k8s.io/cluster-api/util/fieldowner"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
@@ -149,7 +150,7 @@ func setupChecks(mgr ctrl.Manager) {
 
 func setupReconcilers(ctx context.Context, mgr ctrl.Manager) {
 	if err := (&controllers.DockerMachineReconciler{
-		Client: mgr.GetClient(),
+		Client: fieldowner.Wrap(mgr.GetClient(), "docker-machine-controller"),
 	}).SetupWithManager(ctx, mgr, controller.Options{
 		MaxConcurrentReconciles: concurrency,
 	}); err != nil {
@@ -158,7 +159,7 @@ func setupReconcilers(ctx context.Context, mgr ctrl.Manager) {
 	}
 
 	if err := (&controllers.DockerClusterReconciler{
-		Client: mgr.GetClient(),
+		Client: fieldowner.Wrap(mgr.GetClient(), "docker-cluster-controller"),
 		Log:    ctrl.Log.WithName("controllers").WithName("DockerCluster"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DockerCluster")
@@ -167,7 +168,7 @@ func setupReconcilers(ctx context.Context, mgr ctrl.Manager) {
 
 	if feature.Gates.Enabled(feature.MachinePool) {
 		if err := (&expcontrollers.DockerMachinePoolReconciler{
-			Client: mgr.GetClient(),
+			Client: fieldowner.Wrap(mgr.GetClient(), "docker-machine-pool-controller"),
 			Log:    ctrl.Log.WithName("controllers").WithName("DockerMachinePool"),
 		}).SetupWithManager(mgr, controller.Options{
 			MaxConcurrentReconciles: concurrency,
