@@ -102,6 +102,9 @@ var (
 const (
 	// MachineNodeNameIndex is used by the Machine Controller to index Machines by Node name, and add a watch on Nodes.
 	MachineNodeNameIndex = "status.nodeRef.name"
+
+	// ClusterClassNameIndex is used by Cluster controller to index Clusters by ClusterClass name.
+	ClusterClassNameIndex = "spec.topology.class"
 )
 
 // MachineAddressType describes a valid MachineAddress type.
