@@ -115,6 +115,11 @@ func (g *gitHubRepository) GetFile(version, path string) ([]byte, error) {
 }
 
 // newGitHubRepository returns a gitHubRepository implementation.
+func NewGitHubRepository(providerConfig config.Provider, configVariablesClient config.VariablesClient, opts ...githubRepositoryOption) (Repository, error) {
+	return newGitHubRepository(providerConfig, configVariablesClient, opts...)
+}
+
+// newGitHubRepository returns a gitHubRepository implementation.
 func newGitHubRepository(providerConfig config.Provider, configVariablesClient config.VariablesClient, opts ...githubRepositoryOption) (*gitHubRepository, error) {
 	if configVariablesClient == nil {
 		return nil, errors.New("invalid arguments: configVariablesClient can't be nil")

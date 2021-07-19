@@ -65,8 +65,8 @@ type CoreProviderListWrapper struct {
 
 func (c *CoreProviderListWrapper) GetItems() []GenericProvider {
 	providers := []GenericProvider{}
-	for _, provider := range c.Items {
-		providers = append(providers, &CoreProviderWrapper{&provider})
+	for pi := range c.Items {
+		providers = append(providers, &CoreProviderWrapper{&c.Items[pi]})
 	}
 
 	return providers
