@@ -35,6 +35,7 @@ func ResourceCreate(logger logr.Logger) predicate.Funcs {
 }
 
 // AddonsSecretCreate returns a predicate that returns true for a Secret create event if in addons Secret type
+// DEPRECATED: use ResourceCreate() predicate instead because Secret type is not reachable when Secrets are cached as PartialObjectMetadata.
 func AddonsSecretCreate(logger logr.Logger) predicate.Funcs {
 	log := logger.WithValues("predicate", "SecretCreateOrUpdate")
 

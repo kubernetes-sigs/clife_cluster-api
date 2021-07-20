@@ -36,6 +36,7 @@ import (
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha3"
 	"sigs.k8s.io/cluster-api/controllers/remote"
 	addonsv1 "sigs.k8s.io/cluster-api/exp/addons/api/v1alpha3"
+	resourcepredicates "sigs.k8s.io/cluster-api/exp/addons/controllers/predicates"
 	"sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/cluster-api/util/patch"
@@ -69,27 +70,38 @@ type ClusterResourceSetReconciler struct {
 }
 
 func (r *ClusterResourceSetReconciler) SetupWithManager(mgr ctrl.Manager, options controller.Options) error {
-	err := ctrl.NewControllerManagedBy(mgr).
+	c, err := ctrl.NewControllerManagedBy(mgr).
 		For(&addonsv1.ClusterResourceSet{}).
 		Watches(
 			&source.Kind{Type: &clusterv1.Cluster{}},
 			&handler.EnqueueRequestsFromMapFunc{ToRequests: handler.ToRequestsFunc(r.clusterToClusterResourceSet)},
 		).
-		Watches(&source.Kind{Type: builder.OnlyMetadata(&corev1.ConfigMap{})},
-			&handler.EnqueueRequestsFromMapFunc{
-				ToRequests: handler.ToRequestsFunc(r.resourceToClusterResourceSet),
-			},
-		).
-		Watches(&source.Kind{Type: builder.OnlyMetadata(&corev1.Secret{})},
-			&handler.EnqueueRequestsFromMapFunc{
-				ToRequests: handler.ToRequestsFunc(r.resourceToClusterResourceSet),
-			},
-		).
 		WithOptions(options).
 		WithEventFilter(predicates.ResourceNotPaused(r.Log)).
-		Complete(r)
+		Build(r)
 	if err != nil {
 		return errors.Wrap(err, "failed setting up with a controller manager")
+	}
+	err = c.Watch(
+		&source.Kind{Type: builder.OnlyMetadata(&corev1.ConfigMap{})},
+		&handler.EnqueueRequestsFromMapFunc{
+			ToRequests: handler.ToRequestsFunc(r.resourceToClusterResourceSet),
+		},
+		resourcepredicates.ResourceCreate(r.Log),
+	)
+	if err != nil {
+		return errors.Wrap(err, "failed adding Watch for ConfigMaps to controller manager")
+	}
+
+	err = c.Watch(
+		&source.Kind{Type: builder.OnlyMetadata(&corev1.Secret{})},
+		&handler.EnqueueRequestsFromMapFunc{
+			ToRequests: handler.ToRequestsFunc(r.resourceToClusterResourceSet),
+		},
+		resourcepredicates.ResourceCreate(r.Log),
+	)
+	if err != nil {
+		return errors.Wrap(err, "failed adding Watch for Secrets to controller manager")
 	}
 
 	r.scheme = mgr.GetScheme()

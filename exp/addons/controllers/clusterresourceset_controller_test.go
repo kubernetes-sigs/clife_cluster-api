@@ -33,7 +33,7 @@ import (
 )
 
 const (
-	timeout              = time.Second * 10
+	timeout              = time.Second * 15
 	defaultNamespaceName = "default"
 )
 
@@ -236,7 +236,82 @@ metadata:
 			return apierrors.IsNotFound(err)
 		}, timeout).Should(BeTrue())
 	})
-	It("Should reconcile a ClusterResourceSet when a resource is created that is part of ClusterResourceSet resources", func() {
+	It("Should reconcile a ClusterResourceSet when a Secret resource is created that is part of ClusterResourceSet resources", func() {
+		labels := map[string]string{"foo2": "bar2"}
+		newSecretName := "test-secret3"
+
+		clusterResourceSetInstance := &addonsv1.ClusterResourceSet{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-clusterresourceset",
+				Namespace: defaultNamespaceName,
+			},
+			Spec: addonsv1.ClusterResourceSetSpec{
+				ClusterSelector: metav1.LabelSelector{
+					MatchLabels: labels,
+				},
+				Resources: []addonsv1.ResourceRef{{Name: newSecretName, Kind: "Secret"}},
+			},
+		}
+		// Create the ClusterResourceSet.
+		Expect(testEnv.Create(ctx, clusterResourceSetInstance)).To(Succeed())
+
+		testCluster.SetLabels(labels)
+		Expect(testEnv.Update(ctx, testCluster)).To(Succeed())
+
+		By("Verifying ClusterResourceSetBinding is created with cluster owner reference")
+		// Wait until ClusterResourceSetBinding is created for the Cluster
+		clusterResourceSetBindingKey := client.ObjectKey{
+			Namespace: testCluster.Namespace,
+			Name:      testCluster.Name,
+		}
+		Eventually(func() bool {
+			binding := &addonsv1.ClusterResourceSetBinding{}
+
+			err := testEnv.Get(ctx, clusterResourceSetBindingKey, binding)
+			return err == nil
+		}, timeout).Should(BeTrue())
+
+		// Initially ConfigMap is missing, so no resources in the binding.
+		Eventually(func() bool {
+			binding := &addonsv1.ClusterResourceSetBinding{}
+
+			err := testEnv.Get(ctx, clusterResourceSetBindingKey, binding)
+			if err == nil {
+				if len(binding.Spec.Bindings) > 0 && len(binding.Spec.Bindings[0].Resources) == 0 {
+					return true
+				}
+			}
+			return false
+		}, timeout).Should(BeTrue())
+
+		// Must sleep here to make sure resource is created after the previous reconcile.
+		// If the resource is created in between, predicates are not used as intended in this test.
+		time.Sleep(2 * time.Second)
+		testSec := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      newSecretName,
+				Namespace: defaultNamespaceName,
+			},
+			Type: addonsv1.ClusterResourceSetSecretType,
+			Data: map[string][]byte{},
+		}
+		Expect(testEnv.Create(ctx, testSec)).To(Succeed())
+
+		// When the ConfigMap resource is created, CRS should get reconciled immediately.
+		Eventually(func() bool {
+			binding := &addonsv1.ClusterResourceSetBinding{}
+
+			err := testEnv.Get(ctx, clusterResourceSetBindingKey, binding)
+			if err == nil {
+				if len(binding.Spec.Bindings[0].Resources) > 0 && binding.Spec.Bindings[0].Resources[0].Name == newSecretName {
+					return true
+				}
+			}
+			return false
+		}, timeout).Should(BeTrue())
+		Expect(testEnv.Delete(ctx, testSec)).To(Succeed())
+	})
+	It("Should reconcile a ClusterResourceSet when a ConfigMap resource is created that is part of ClusterResourceSet resources", func() {
 		labels := map[string]string{"foo2": "bar2"}
 		newCMName := "test-configmap3"
 
@@ -283,6 +358,10 @@ metadata:
 			}
 			return false
 		}, timeout).Should(BeTrue())
+
+		// Must sleep here to make sure resource is created after the previous reconcile.
+		// If the resource is created in between, predicates are not used as intended in this test.
+		time.Sleep(2 * time.Second)
 
 		testConfigmap := &corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
