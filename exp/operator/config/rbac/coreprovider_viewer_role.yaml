@@ -1,0 +1,20 @@
+# permissions for end users to view coreproviders.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: coreprovider-viewer-role
+rules:
+- apiGroups:
+  - operator.cluster.x-k8s.io
+  resources:
+  - coreproviders
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - operator.cluster.x-k8s.io
+  resources:
+  - coreproviders/status
+  verbs:
+  - get

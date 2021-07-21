@@ -18,8 +18,13 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-REPO_ROOT=$(dirname "${BASH_SOURCE[0]}")/..
+REPO_ROOT=$(git rev-parse --show-toplevel)
 cd "${REPO_ROOT}" || exit 1
 
 echo "*** Verifying Cluster API ***"
+make verify
+
+echo -e "\n*** Verifying Cluster API Operator ***\n"
+# Operator
+cd exp/operator
 make verify

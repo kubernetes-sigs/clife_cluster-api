@@ -18,7 +18,7 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-REPO_ROOT=$(dirname "${BASH_SOURCE[0]}")/..
+REPO_ROOT=$(git rev-parse --show-toplevel)
 
 # Core Cluster API
 cd "${REPO_ROOT}" && make managers clusterctl e2e-framework
@@ -26,3 +26,7 @@ cd "${REPO_ROOT}" && make managers clusterctl e2e-framework
 echo "*** Building Cluster API Provider Docker ***"
 # Docker provider
 cd "${REPO_ROOT}/test/infrastructure/docker" && make manager
+
+echo "*** Building Cluster API Operator ***"
+# Cluster API Operator
+cd "${REPO_ROOT}/exp/operator" && make operator

@@ -18,7 +18,7 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-REPO_ROOT=$(dirname "${BASH_SOURCE[0]}")/..
+REPO_ROOT=$(git rev-parse --show-toplevel)
 cd "${REPO_ROOT}" || exit 1
 
 # shellcheck source=./hack/ensure-go.sh
@@ -29,5 +29,10 @@ make test-junit
 
 echo -e "\n*** Testing Cluster API Provider Docker ***\n"
 # Docker provider
-cd test/infrastructure/docker
+cd "${REPO_ROOT}/test/infrastructure/docker"
 make test-junit
+
+echo -e "\n*** Testing Cluster API Operator ***\n"
+# Operator
+cd "${REPO_ROOT}/exp/operator"
+make test-verbose

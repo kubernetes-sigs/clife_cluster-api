@@ -1,0 +1,11 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: controller-manager
+  namespace: system
+spec:
+  template:
+    spec:
+      containers:
+        - image: gcr.io/k8s-staging-cluster-api/operator-controller-amd64:dev
+          name: manager

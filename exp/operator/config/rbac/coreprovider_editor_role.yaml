@@ -1,0 +1,24 @@
+# permissions for end users to edit coreproviders.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: coreprovider-editor-role
+rules:
+- apiGroups:
+  - operator.cluster.x-k8s.io
+  resources:
+  - coreproviders
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - operator.cluster.x-k8s.io
+  resources:
+  - coreproviders/status
+  verbs:
+  - get

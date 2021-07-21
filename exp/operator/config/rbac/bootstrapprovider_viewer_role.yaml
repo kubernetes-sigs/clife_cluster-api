@@ -1,0 +1,20 @@
+# permissions for end users to view bootstrapproviders.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: bootstrapprovider-viewer-role
+rules:
+- apiGroups:
+  - operator.cluster.x-k8s.io
+  resources:
+  - bootstrapproviders
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - operator.cluster.x-k8s.io
+  resources:
+  - bootstrapproviders/status
+  verbs:
+  - get

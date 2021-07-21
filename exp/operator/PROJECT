@@ -1,0 +1,16 @@
+domain: cluster.x-k8s.io
+repo: sigs.k8s.io/cluster-api
+resources:
+- group: operator
+  kind: CoreProvider
+  version: v1alpha1
+- group: operator
+  kind: BootstrapProvider
+  version: v1alpha1
+- group: operator
+  kind: ControlPlaneProvider
+  version: v1alpha1
+- group: operator
+  kind: InfrastructureProvider
+  version: v1alpha1
+version: "2"

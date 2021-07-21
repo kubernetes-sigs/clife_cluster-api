@@ -1,0 +1,24 @@
+# permissions for end users to edit controlplaneproviders.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: controlplaneprovider-editor-role
+rules:
+- apiGroups:
+  - operator.cluster.x-k8s.io
+  resources:
+  - controlplaneproviders
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - operator.cluster.x-k8s.io
+  resources:
+  - controlplaneproviders/status
+  verbs:
+  - get

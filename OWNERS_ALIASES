@@ -56,3 +56,12 @@ aliases:
 
   cluster-api-provider-docker-reviewers:
   cluster-api-provider-docker-maintainers:
+
+  # -----------------------------------------------------------
+  # OWNER_ALIASES for exp/operator
+  # -----------------------------------------------------------
+
+  cluster-api-operator-reviewers:
+  - alexander-demichev
+  - MarcelMue
+  - JoelSpeed
