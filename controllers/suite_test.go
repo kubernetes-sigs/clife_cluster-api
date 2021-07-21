@@ -53,7 +53,12 @@ func TestMain(m *testing.M) {
 
 	// Set up the MachineNodeIndex
 	if err := noderefutil.AddMachineNodeIndex(ctx, env.Manager); err != nil {
-		panic(fmt.Sprintf("undable to setup machine node index: %v", err))
+		panic(fmt.Sprintf("unable to setup machine node index: %v", err))
+	}
+
+	// Set up the MachineProviderIDIndex
+	if err := noderefutil.AddMachineProviderIDIndex(ctx, env.Manager); err != nil {
+		panic(fmt.Sprintf("unable to setup machine providerID index: %v", err))
 	}
 
 	// Set up a ClusterCacheTracker and ClusterCacheReconciler to provide to controllers

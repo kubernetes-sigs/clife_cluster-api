@@ -646,18 +646,12 @@ func (r *MachineReconciler) nodeToMachine(o client.Object) []reconcile.Request {
 		panic(fmt.Sprintf("Expected a Node but got a %T", o))
 	}
 
-	// Match by nodeName and status.nodeRef.name.
-	filters := []client.ListOption{
-		client.MatchingFields{clusterv1.MachineNodeNameIndex: node.Name},
-	}
-
+	var filters []client.ListOption
 	// Match by clusterName when the node has the annotation.
 	if clusterName, ok := node.GetAnnotations()[clusterv1.ClusterNameAnnotation]; ok {
-		filters = append(filters,
-			client.MatchingLabels{
-				clusterv1.ClusterLabelName: clusterName,
-			},
-		)
+		filters = append(filters, client.MatchingLabels{
+			clusterv1.ClusterLabelName: clusterName,
+		})
 	}
 
 	// Match by namespace when the node has the annotation.
@@ -665,20 +659,40 @@ func (r *MachineReconciler) nodeToMachine(o client.Object) []reconcile.Request {
 		filters = append(filters, client.InNamespace(namespace))
 	}
 
+	// Match by nodeName and status.nodeRef.name.
 	machineList := &clusterv1.MachineList{}
 	if err := r.Client.List(
 		context.TODO(),
 		machineList,
-		filters...); err != nil {
+		append(filters, client.MatchingFields{clusterv1.MachineNodeNameIndex: node.Name})...); err != nil {
 		return nil
 	}
 
 	// There should be exactly 1 Machine for the node.
-	if len(machineList.Items) != 1 {
+	if len(machineList.Items) == 1 {
+		return []reconcile.Request{{NamespacedName: util.ObjectKey(&machineList.Items[0])}}
+	}
+
+	// Otherwise let's match by providerID. This is useful when e.g the NodeRef has not been set yet.
+	// Match by providerID
+	nodeProviderID, err := noderefutil.NewProviderID(node.Spec.ProviderID)
+	if err != nil {
+		return nil
+	}
+	machineList = &clusterv1.MachineList{}
+	if err := r.Client.List(
+		context.TODO(),
+		machineList,
+		append(filters, client.MatchingFields{clusterv1.MachineProviderIDIndex: nodeProviderID.IndexKey()})...); err != nil {
 		return nil
 	}
 
-	return []reconcile.Request{{NamespacedName: util.ObjectKey(&machineList.Items[0])}}
+	// There should be exactly 1 Machine for the node.
+	if len(machineList.Items) == 1 {
+		return []reconcile.Request{{NamespacedName: util.ObjectKey(&machineList.Items[0])}}
+	}
+
+	return nil
 }
 
 // writer implements io.Writer interface as a pass-through for klog.

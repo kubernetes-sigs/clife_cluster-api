@@ -70,7 +70,8 @@ func (r *MachineReconciler) reconcileNode(ctx context.Context, cluster *clusterv
 				return ctrl.Result{}, errors.Wrapf(err, "no matching Node for Machine %q in namespace %q", machine.Name, machine.Namespace)
 			}
 			conditions.MarkFalse(machine, clusterv1.MachineNodeHealthyCondition, clusterv1.NodeProvisioningReason, clusterv1.ConditionSeverityWarning, "")
-			return ctrl.Result{Requeue: true}, nil
+			// No need to requeue here. Nodes emit an event that triggers reconciliation.
+			return ctrl.Result{}, nil
 		}
 		log.Error(err, "Failed to retrieve Node by ProviderID")
 		r.recorder.Event(machine, corev1.EventTypeWarning, "Failed to retrieve Node by ProviderID", err.Error())
