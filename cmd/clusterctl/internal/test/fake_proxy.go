@@ -67,6 +67,10 @@ func (f *FakeProxy) ValidateKubernetesVersion() error {
 	return nil
 }
 
+func (f *FakeProxy) ValidateKubernetesMaxVersion() error {
+	return nil
+}
+
 func (f *FakeProxy) GetConfig() (*rest.Config, error) {
 	return nil, nil
 }
