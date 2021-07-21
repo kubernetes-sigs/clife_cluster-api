@@ -76,6 +76,10 @@ func (c *clusterctlClient) Init(options InitOptions) ([]Components, error) {
 		return nil, err
 	}
 
+	if err := clusterClient.Proxy().ValidateKubernetesMaxVersion(); err != nil {
+		return nil, err
+	}
+
 	// ensure the custom resource definitions required by clusterctl are in place
 	if err := clusterClient.ProviderInventory().EnsureCustomResourceDefinitions(); err != nil {
 		return nil, err

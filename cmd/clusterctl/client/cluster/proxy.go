@@ -100,6 +100,31 @@ func (k *proxy) ValidateKubernetesVersion() error {
 	return nil
 }
 
+func (k *proxy) ValidateKubernetesMaxVersion() error {
+	config, err := k.GetConfig()
+	if err != nil {
+		return err
+	}
+
+	client := discovery.NewDiscoveryClientForConfigOrDie(config)
+	serverVersion, err := client.ServerVersion()
+	if err != nil {
+		return errors.Wrap(err, "failed to retrieve server version")
+	}
+
+	compver, err := utilversion.MustParseGeneric(serverVersion.String()).Compare(firstUnsupportedKubernetesVersion)
+	if err != nil {
+		return errors.Wrap(err, "failed to parse and compare server version")
+	}
+
+	// We want to return an error if the serverVersion is greater or equal than firstUnsupportedKubernetesVersion
+	if compver >= 0 {
+		return errors.Errorf("unsupported management cluster server version: %s - versions greater or equal than %s are not supported", serverVersion.String(), firstUnsupportedKubernetesVersion)
+	}
+
+	return nil
+}
+
 // GetConfig returns the config for a kubernetes client.
 func (k *proxy) GetConfig() (*rest.Config, error) {
 	config, err := k.configLoadingRules.Load()

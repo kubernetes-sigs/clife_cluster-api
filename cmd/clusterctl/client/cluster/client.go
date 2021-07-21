@@ -33,6 +33,9 @@ import (
 
 const (
 	minimumKubernetesVersion = "v1.16.0"
+	// firstUnsupportedKubernetesVersion is the first version we don't support as management cluster.
+	// We cannot support v1.22.0 as it's not compatible with our controller-runtime version and WebhookConfigurations v1beta1.
+	firstUnsupportedKubernetesVersion = "v1.22.0"
 )
 
 var (
@@ -227,6 +230,9 @@ type Proxy interface {
 
 	// ValidateKubernetesVersion returns an error if management cluster version less than minimumKubernetesVersion
 	ValidateKubernetesVersion() error
+
+	// ValidateKubernetesMaxVersion returns an error if management cluster version is greater than or equal to firstUnsupportedKubernetesVersion
+	ValidateKubernetesMaxVersion() error
 
 	// NewClient returns a new controller runtime Client object for working on the management cluster
 	NewClient() (client.Client, error)
