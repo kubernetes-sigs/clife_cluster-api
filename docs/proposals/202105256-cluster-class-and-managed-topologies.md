@@ -44,6 +44,7 @@ replaces:
         - [Validations](#validations)
             - [ClusterClass](#clusterclass-2)
             - [Cluster](#cluster-1)
+            - [ClusterClass compatibility](#clusterclass-compatibility)
         - [Behaviors](#behaviors)
             - [Create a new Cluster using ClusterClass object](#create-a-new-cluster-using-clusterclass-object)
             - [Update an existing Cluster using ClusterClass](#update-an-existing-cluster-using-clusterclass)
@@ -313,11 +314,21 @@ type LocalObjectTemplate struct {
   - `spec.topology.workers.machineDeployments[i].name` field must be unique within a Cluster
   
 - For object updates:
-  - If `spec.topology.class` is set, it cannot be unset or modified.
+  - If `spec.topology.class` is set, it cannot be unset.
   - `spec.topology.version` cannot be unset and must be a valid semver, if being updated.
   - `spec.topology.version` cannot be downgraded.
   - `spec.topology.workers.machineDeployments[i].name` field must be unique within a Cluster
   - A set of worker nodes can be added to or removed from the `spec.topology.workers.machineDeployments` list.
+
+##### ClusterClass compatibility
+There are cases where we must consider whether two ClusterClasses are compatible:
+1. Where a user chooses to replace an existing ClusterClass `cluster.spec.topology.class` with a new ClusterClass
+2. Where a user updates a ClusterClass currently in use by a Cluster
+
+To establish compatibility between two ClusterClasses:
+    - All the reference must be in the same namespace of `metadata.Namespace`  
+    - `spec.workers.machineDeployments` must not remove any deployment classes (adding new or modifying existing classes is supported).
+    - `spec.controlPlane.ref`, `spec.infrastructure.ref`,  `spec.workers.machineDeployments[].template.infrastructure.ref` must not change apiGroup or Kind
 
 #### Behaviors
 This section lists out the behavior for Cluster objects using `ClusterClass` in case of creates and updates.
@@ -435,7 +446,7 @@ This section lists out the behavior for Cluster objects using `ClusterClass` in 
 
 ![Creation of cluster with ClusterClass](./images/cluster-class/create.png)
 
-##### Update an existing Cluster using ClusterClass
+##### Update an existing Cluster using Topology
 This section talks about updating a cluster which was created using a `ClusterClass` object.
 1. User updates the `cluster.spec.topology` field adhering to the update validation [criteria](#clusterclass-2).
 2. For the ControlPlane object in `spec.topology.controlPlane`, the cluster controller checks for the presence of the control plane object using the name `<cluster-name>`. If found,
