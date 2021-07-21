@@ -44,12 +44,19 @@ The `ImplementationControlPlane` *must* rely on the existence of
 
 ### CRD contracts
 
-#### Required `spec` fields for implementations using replicas
+#### Required `spec` fields
 
 * `replicas` - is an integer representing the number of desired
   replicas. In the KubeadmControlPlane, this represents the desired
   number of control plane machines.
-
+  
+* `version` - is a string representing the Kubernetes version to be used
+  by the control plane machines. The value must be a valid semantic version;
+  also if the value provided by the user does not start with the v prefix, it
+  should be added.
+  NOTE: This field is a requirement for ClusterClass compatibility and doesn't
+  necessarily apply to current provider offerings
+  
 * `scale` subresource with the following signature:
 
 ``` yaml
@@ -63,6 +70,31 @@ status: {}
 More information about the [scale subresource can be found in the Kubernetes
 documentation][scale].
 
+#### optional `spec` fields
+
+NOTE: Those fields are a requirement for ClusterClass compatibility and doesn't
+necessarily apply to current provider offerings
+
+* `machineTemplate` - is a struct containing details of the control plane 
+  machine template.
+
+* `machineTemplate.metadata` - is a struct containing info about metadata for control plane
+  machines.
+
+* `machineTemplate.metadata.labels` - is a map of string keys and values that can be used 
+  to organize and categorize control plane machines.
+
+* `machineTemplate.metadata.annotations` - is a map of string keys and values containing
+  arbitrary metadata to be applied to control plane machines.
+
+* `machineTemplate.infrastructureRef` - is a corev1.ObjectReference to a custom resource
+  offered by an infrastructure provider. The namespace in the ObjectReference must
+  be in the same namespace of the control plane object. 
+
+* `machineTemplate.nodeDrainTimeout` - is a *metav1.Duration defining the total amount of time
+  that the controller will spend on draining a control plane node.
+  The default value is 0, meaning that the node can be drained without any time limitations.
+  
 #### Required `status` fields
 
 The `ImplementationControlPlane` object **must** have a `status` object.
