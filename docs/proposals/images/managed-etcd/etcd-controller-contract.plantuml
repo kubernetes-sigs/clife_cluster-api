@@ -1,0 +1,28 @@
+@startuml
+start
+:Etcd cluster controller;
+repeat
+:Etcd cluster controller enqueues a Reconcile call;
+if (Deleted?) then (yes)
+    if (Has cluster owner?) then (yes)
+        :Reconcile deletion;
+    else (no)
+    endif
+    :Delete implementation-specific finalizer;
+else (no)
+    if (OwnerReferences contains a Cluster) then (yes)
+        :Add implementation-specific finalizer if needed;
+        #LightBlue:Get cluster object for etcd cluster;
+        if (Cluster object has status.InfrastructureReady set to true) then (yes)
+          :Reconcile etcd cluster;
+          :Create Machines to match number of replicas;
+          if (Etcd cluster members pass healthchecks) then (yes)
+            #LightBlue:Set status.Ready to true;
+            #LightBlue:Update status.Endpoint with etcd member endpoints;
+          else (no)
+            #Pink:Set status.Ready to false;
+          endif
+        endif
+      endif
+endif
+@enduml
