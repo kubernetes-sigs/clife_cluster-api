@@ -360,7 +360,7 @@ func Test_gitHubRepository_getLatestContractRelease(t *testing.T) {
 			gRepo, err := newGitHubRepository(tt.field.providerConfig, configVariablesClient, injectGithubClient(client))
 			g.Expect(err).NotTo(HaveOccurred())
 
-			got, err := gRepo.getLatestContractRelease(tt.contract)
+			got, err := LatestContractRelease(gRepo, tt.contract)
 			if tt.wantErr {
 				g.Expect(err).To(HaveOccurred())
 				return
@@ -446,7 +446,7 @@ func Test_gitHubRepository_getLatestRelease(t *testing.T) {
 			gRepo, err := newGitHubRepository(tt.field.providerConfig, configVariablesClient, injectGithubClient(client))
 			g.Expect(err).NotTo(HaveOccurred())
 
-			got, err := gRepo.getLatestRelease()
+			got, err := LatestRelease(gRepo)
 			if tt.wantErr {
 				g.Expect(err).To(HaveOccurred())
 				return
@@ -528,7 +528,7 @@ func Test_gitHubRepository_getLatestPatchRelease(t *testing.T) {
 			gRepo, err := newGitHubRepository(tt.field.providerConfig, configVariablesClient, injectGithubClient(client))
 			g.Expect(err).NotTo(HaveOccurred())
 
-			got, err := gRepo.getLatestPatchRelease(tt.major, tt.minor)
+			got, err := LatestPatchRelease(gRepo, tt.major, tt.minor)
 			if tt.wantErr {
 				g.Expect(err).To(HaveOccurred())
 				return
