@@ -23,11 +23,7 @@ import (
 	"runtime"
 	"strings"
 
-	apiruntime "k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/serializer"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha4"
-	clusterctlv1 "sigs.k8s.io/cluster-api/cmd/clusterctl/api/v1alpha3"
-	"sigs.k8s.io/cluster-api/cmd/clusterctl/internal/scheme"
 
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/util/version"
@@ -94,7 +90,7 @@ func (r *localRepository) GetFile(version, fileName string) ([]byte, error) {
 	var err error
 
 	if version == latestVersionTag {
-		version, err = r.getLatestRelease()
+		version, err = LatestRelease(r)
 		if err != nil {
 			return nil, errors.Wrapf(err, "failed to get the latest release")
 		}
@@ -198,103 +194,10 @@ func newLocalRepository(providerConfig config.Provider, configVariablesClient co
 	}
 
 	if defaultVersion == latestVersionTag {
-		repo.defaultVersion, err = repo.getLatestContractRelease(clusterv1.GroupVersion.Version)
+		repo.defaultVersion, err = LatestContractRelease(repo, clusterv1.GroupVersion.Version)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to get latest version")
 		}
 	}
 	return repo, nil
-}
-
-// getLatestContractRelease returns the latest patch release for a local repository for the current API contract.
-func (r *localRepository) getLatestContractRelease(contract string) (string, error) {
-	latest, err := r.getLatestRelease()
-	if err != nil {
-		return latest, err
-	}
-	// Attempt to check if the latest release satisfies the API Contract
-	// This is a best-effort attempt to find the latest release for an older API contract if it's not the latest Github release.
-	// If an error occurs, we just return the latest release.
-	file, err := r.GetFile(latest, metadataFile)
-	if err != nil {
-		// if we can't get the metadata file from the release, we return latest.
-		return latest, nil // nolint:nilerr
-	}
-	latestMetadata := &clusterctlv1.Metadata{}
-	codecFactory := serializer.NewCodecFactory(scheme.Scheme)
-	if err := apiruntime.DecodeInto(codecFactory.UniversalDecoder(), file, latestMetadata); err != nil {
-		return latest, nil // nolint:nilerr
-	}
-
-	releaseSeries := latestMetadata.GetReleaseSeriesForContract(contract)
-	if releaseSeries == nil {
-		return latest, nil
-	}
-
-	sv, err := version.ParseSemantic(latest)
-	if err != nil {
-		return latest, nil // nolint:nilerr
-	}
-
-	// If the Major or Minor version of the latest release doesn't match the release series for the current contract,
-	// return the latest patch release of the desired Major/Minor version.
-	if sv.Major() != releaseSeries.Major || sv.Minor() != releaseSeries.Minor {
-		return r.getLatestPatchRelease(&releaseSeries.Major, &releaseSeries.Minor)
-	}
-	return latest, nil
-}
-
-// getLatestRelease returns the latest release for the local repository.
-func (r *localRepository) getLatestRelease() (string, error) {
-	return r.getLatestPatchRelease(nil, nil)
-}
-
-// getLatestPatchRelease returns the latest patch release for a given Major and Minor version.
-func (r *localRepository) getLatestPatchRelease(major, minor *uint) (string, error) {
-	versions, err := r.GetVersions()
-	if err != nil {
-		return "", errors.Wrapf(err, "failed to get local repository versions")
-	}
-
-	var latestTag string
-	var latestPrereleaseTag string
-
-	var latestReleaseVersion *version.Version
-	var latestPrereleaseVersion *version.Version
-
-	for _, v := range versions {
-		sv, err := version.ParseSemantic(v)
-		if err != nil {
-			continue
-		}
-
-		if (major != nil && sv.Major() != *major) || (minor != nil && sv.Minor() != *minor) {
-			// skip versions that don't match the desired Major.Minor version.
-			continue
-		}
-
-		// track prereleases separately
-		if sv.PreRelease() != "" {
-			if latestPrereleaseVersion == nil || latestPrereleaseVersion.LessThan(sv) {
-				latestPrereleaseTag = v
-				latestPrereleaseVersion = sv
-			}
-			continue
-		}
-
-		if latestReleaseVersion == nil || latestReleaseVersion.LessThan(sv) {
-			latestTag = v
-			latestReleaseVersion = sv
-		}
-	}
-
-	// Fall back to returning latest prereleases if no release has been cut or bail if it's also empty
-	if latestTag == "" {
-		if latestPrereleaseTag == "" {
-			return "", errors.New("failed to find releases tagged with a valid semantic version number")
-		}
-
-		return latestPrereleaseTag, nil
-	}
-	return latestTag, nil
 }
