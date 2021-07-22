@@ -1,5 +1,5 @@
 /*
-Copyright 2019 The Kubernetes Authors.
+Copyright 2021 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,16 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package loadbalancer
+package v1alpha4
 
-// Image defines the loadbalancer image name
-const Image = "haproxy"
-
-// DefaultImageRepository defines the loadbalancer image repository
-const DefaultImageRepository = "kindest"
-
-// DefaultImageTag defines the loadbalancer image tag
-const DefaultImageTag = "v20210715-a6da3463"
-
-// ConfigPath defines the path to the config file in the image
-const ConfigPath = "/usr/local/etc/haproxy/haproxy.cfg"
+func (*DockerCluster) Hub()     {}
+func (*DockerClusterList) Hub() {}

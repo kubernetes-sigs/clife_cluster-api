@@ -73,7 +73,7 @@ func (r *DockerClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	log = log.WithValues("cluster", cluster.Name)
 
 	// Create a helper for managing a docker container hosting the loadbalancer.
-	externalLoadBalancer, err := docker.NewLoadBalancer(cluster)
+	externalLoadBalancer, err := docker.NewLoadBalancer(cluster, dockerCluster)
 	if err != nil {
 		return ctrl.Result{}, errors.Wrapf(err, "failed to create helper for managing the externalLoadBalancer")
 	}

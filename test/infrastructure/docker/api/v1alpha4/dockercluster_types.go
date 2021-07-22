@@ -42,6 +42,30 @@ type DockerClusterSpec struct {
 	// controllers to do what they will with the defined failure domains.
 	// +optional
 	FailureDomains clusterv1.FailureDomains `json:"failureDomains,omitempty"`
+
+	// LoadBalancer allows defining configurations for the cluster load balancer.
+	// +optional
+	LoadBalancer DockerLoadBalancer `json:"loadBalancer,omitempty"`
+}
+
+// DockerLoadBalancer allows defining configurations for the cluster load balancer.
+type DockerLoadBalancer struct {
+	// ImageMeta allows customizing the image used for the cluster load balancer.
+	ImageMeta `json:",inline"`
+}
+
+// ImageMeta allows customizing the image used for components that are not
+// originated from the Kubernetes/Kubernetes release process.
+type ImageMeta struct {
+	// ImageRepository sets the container registry to pull the haproxy image from.
+	// if not set, "kindest" will be used instead.
+	// +optional
+	ImageRepository string `json:"imageRepository,omitempty"`
+
+	// ImageTag allows to specify a tag for the haproxy image.
+	// if not set, "v20210715-a6da3463" will be used instead.
+	// +optional
+	ImageTag string `json:"imageTag,omitempty"`
 }
 
 // DockerClusterStatus defines the observed state of DockerCluster.

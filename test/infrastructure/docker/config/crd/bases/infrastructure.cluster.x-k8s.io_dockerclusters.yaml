@@ -213,6 +213,19 @@ spec:
                   will simply copy these into the Status and allow the Cluster API
                   controllers to do what they will with the defined failure domains.
                 type: object
+              loadBalancer:
+                description: LoadBalancer allows defining configurations for the cluster
+                  load balancer.
+                properties:
+                  imageRepository:
+                    description: ImageRepository sets the container registry to pull
+                      the haproxy image from. if not set, "kindest" will be used instead.
+                    type: string
+                  imageTag:
+                    description: ImageTag allows to specify a tag for the haproxy
+                      image. if not set, "v20210715-a6da3463" will be used instead.
+                    type: string
+                type: object
             type: object
           status:
             description: DockerClusterStatus defines the observed state of DockerCluster.

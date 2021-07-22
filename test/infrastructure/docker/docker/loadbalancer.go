@@ -24,6 +24,7 @@ import (
 	"github.com/pkg/errors"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha4"
 	"sigs.k8s.io/cluster-api/test/infrastructure/container"
+	"sigs.k8s.io/cluster-api/test/infrastructure/docker/api/v1alpha4"
 	"sigs.k8s.io/cluster-api/test/infrastructure/docker/docker/types"
 	"sigs.k8s.io/cluster-api/test/infrastructure/docker/third_party/forked/loadbalancer"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -37,13 +38,14 @@ type lbCreator interface {
 // LoadBalancer manages the load balancer for a specific docker cluster.
 type LoadBalancer struct {
 	name      string
+	image     string
 	container *types.Node
 	ipFamily  clusterv1.ClusterIPFamily
 	lbCreator lbCreator
 }
 
 // NewLoadBalancer returns a new helper for managing a docker loadbalancer with a given name.
-func NewLoadBalancer(cluster *clusterv1.Cluster) (*LoadBalancer, error) {
+func NewLoadBalancer(cluster *clusterv1.Cluster, dockerCluster *v1alpha4.DockerCluster) (*LoadBalancer, error) {
 	if cluster.Name == "" {
 		return nil, errors.New("create load balancer: cluster name is empty")
 	}
@@ -65,12 +67,35 @@ func NewLoadBalancer(cluster *clusterv1.Cluster) (*LoadBalancer, error) {
 		return nil, fmt.Errorf("create load balancer: %s", err)
 	}
 
+	image := getLoadBalancerImage(dockerCluster)
+
 	return &LoadBalancer{
 		name:      cluster.Name,
+		image:     image,
 		container: container,
 		ipFamily:  ipFamily,
 		lbCreator: &Manager{},
 	}, nil
+}
+
+// getLoadBalancerImage will return the image (e.g. "kindest/haproxy:2.1.1-alpine") to use for
+// the load balancer.
+func getLoadBalancerImage(dockerCluster *v1alpha4.DockerCluster) string {
+	// Check if a non-default image was provided
+	image := loadbalancer.Image
+	imageRepo := loadbalancer.DefaultImageRepository
+	imageTag := loadbalancer.DefaultImageTag
+
+	if dockerCluster != nil {
+		if dockerCluster.Spec.LoadBalancer.ImageRepository != "" {
+			imageRepo = dockerCluster.Spec.LoadBalancer.ImageRepository
+		}
+		if dockerCluster.Spec.LoadBalancer.ImageTag != "" {
+			imageTag = dockerCluster.Spec.LoadBalancer.ImageTag
+		}
+	}
+
+	return fmt.Sprintf("%s/%s:%s", imageRepo, image, imageTag)
 }
 
 // ContainerName is the name of the docker container with the load balancer.
@@ -94,7 +119,7 @@ func (s *LoadBalancer) Create(ctx context.Context) error {
 		s.container, err = s.lbCreator.CreateExternalLoadBalancerNode(
 			ctx,
 			s.containerName(),
-			loadbalancer.Image,
+			s.image,
 			s.name,
 			listenAddr,
 			0,
