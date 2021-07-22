@@ -26,9 +26,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
+	intstrutil "k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/utils/integer"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha4"
+	"sigs.k8s.io/cluster-api/controllers/mdutil"
 	"sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/annotations"
 	"sigs.k8s.io/cluster-api/util/conditions"
@@ -227,7 +230,27 @@ func (r *MachineDeploymentReconciler) reconcile(ctx context.Context, cluster *cl
 		if d.Spec.Strategy.RollingUpdate == nil {
 			return ctrl.Result{}, errors.Errorf("missing MachineDeployment settings for strategy type: %s", d.Spec.Strategy.Type)
 		}
-		return ctrl.Result{}, r.rolloutRolling(ctx, d, msList)
+
+		// If we are not in a rolling update operation, rollout after if we can.
+		newMachineSet, oldMachineSets, err := r.getAllMachineSetsAndSyncRevision(ctx, d, msList, true)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		allMachineSets := append(oldMachineSets, newMachineSet)
+		oldMachinesCount := mdutil.GetReplicaCountForMachineSets(oldMachineSets)
+		// If there's no oldMachinesCount we assume we are not in a rolling update operation.
+		if oldMachinesCount == 0 {
+			if err := r.rolloutAfter(ctx, d, newMachineSet); err != nil {
+				return ctrl.Result{}, err
+			}
+
+			// Update status and requeue.
+			return ctrl.Result{}, r.syncDeploymentStatus(allMachineSets, newMachineSet, d)
+		}
+
+		if err := r.rolloutRolling(ctx, d, msList); err != nil {
+			return ctrl.Result{}, err
+		}
 	}
 
 	if d.Spec.Strategy.Type == clusterv1.OnDeleteMachineDeploymentStrategyType {
@@ -235,6 +258,80 @@ func (r *MachineDeploymentReconciler) reconcile(ctx context.Context, cluster *cl
 	}
 
 	return ctrl.Result{}, errors.Errorf("unexpected deployment strategy type: %s", d.Spec.Strategy.Type)
+}
+
+func (r *MachineDeploymentReconciler) rolloutAfter(ctx context.Context, machineDeployment *clusterv1.MachineDeployment, newMachineSet *clusterv1.MachineSet) error {
+	var machinesToRollout []*clusterv1.Machine
+	machines, err := r.getMachinesForMachineSet(ctx, newMachineSet)
+	if err != nil {
+		return err
+	}
+
+	// Find Machines needing to rollout after.
+	for key := range machines {
+		if machines[key].DeletionTimestamp.IsZero() &&
+			machines[key].CreationTimestamp.Before(machineDeployment.Spec.RolloutAfter) {
+			machines[key].Annotations[clusterv1.DeleteMachineAnnotation] = "True"
+			// TODO: Patch machines
+			machinesToRollout = append(machinesToRollout, machines[key])
+		}
+	}
+
+	// Scale up if we can
+	maxSurge, err := intstrutil.GetScaledValueFromIntOrPercent(machineDeployment.Spec.Strategy.RollingUpdate.MaxSurge, int(*(machineDeployment.Spec.Replicas)), true)
+	if err != nil {
+		return err
+	}
+	maxTotalMachines := *(machineDeployment.Spec.Replicas) + int32(maxSurge)
+	if *newMachineSet.Spec.Replicas < maxTotalMachines {
+		scaleUpCount := integer.Int32Min(maxTotalMachines-*newMachineSet.Spec.Replicas, int32(len(machinesToRollout)))
+		if err := r.scaleMachineSet(ctx, newMachineSet, scaleUpCount, machineDeployment); err != nil {
+			return err
+		}
+	}
+
+	// Scale down if we can
+	maxUnavailable := mdutil.MaxUnavailable(*machineDeployment)
+	minAvailable := *(machineDeployment.Spec.Replicas) - maxUnavailable
+	newMachineSetUnavailableMachineCount := *(newMachineSet.Spec.Replicas) - newMachineSet.Status.AvailableReplicas
+	maxScaledDown := *newMachineSet.Spec.Replicas - minAvailable - newMachineSetUnavailableMachineCount
+	scaleDownCount := integer.Int32Min(maxScaledDown, int32(len(machinesToRollout)))
+	if maxScaledDown > 0 {
+		return r.scaleMachineSet(ctx, newMachineSet, scaleDownCount, machineDeployment)
+	}
+
+	return nil
+}
+
+func (r *MachineDeploymentReconciler) getMachinesForMachineSet(ctx context.Context, machineSet *clusterv1.MachineSet) ([]*clusterv1.Machine, error) {
+	selectorMap, err := metav1.LabelSelectorAsMap(&machineSet.Spec.Selector)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert MachineSet %v label selector to a map: %w",
+			client.ObjectKeyFromObject(machineSet), err)
+	}
+
+	// Get all Machines linked to this MachineSet.
+	allMachines := &clusterv1.MachineList{}
+	if err := r.Client.List(ctx,
+		allMachines,
+		client.InNamespace(machineSet.Namespace),
+		client.MatchingLabels(selectorMap),
+	); err != nil {
+		return nil, fmt.Errorf("failed to list machines for MachineSet %v: %w",
+			client.ObjectKeyFromObject(machineSet), err)
+	}
+
+	// Filter out machines not owned by this machineSet
+	filteredMachines := make([]*clusterv1.Machine, 0, len(allMachines.Items))
+	for key := range allMachines.Items {
+		machine := &allMachines.Items[key]
+		if shouldExcludeMachine(machineSet, machine) {
+			continue
+		}
+		filteredMachines = append(filteredMachines, machine)
+	}
+
+	return filteredMachines, nil
 }
 
 // getMachineSetsForDeployment returns a list of MachineSets associated with a MachineDeployment.
