@@ -251,9 +251,14 @@ type LocalObjectTemplate struct {
     // ControlPlaneTopology specifies the parameters for the control plane nodes in the cluster.
     type ControlPlaneTopology struct {
       Metadata ObjectMeta `json:"metadata,omitempty"`
-    
-      // The number of control plane nodes.
-      Replicas int `json:"replicas"`
+
+      // Replicas is the number of control plane nodes.
+      //
+      // A nil value indicates that the ControlPlane object is created without the number of Replicas.
+      // The underlying assumption is that the control plane provider does not support this field.
+      // When specified against a control plane provider that lacks support for this field, this value will be ignored.
+      // +optional
+      Replicas *int `json:"replicas,omitempty"`
     }
     ```
 1.  The `WorkersTopology` object represents the sets of worker nodes of the topology.
@@ -408,7 +413,7 @@ This section lists out the behavior for Cluster objects using `ClusterClass` in 
        ```
     1. For the ControlPlane object in `cluster.spec.topology.controlPlane`
     1. Initializes a control plane object using the control plane template defined in the `ClusterClass.spec.controlPlane.ref field`. Use the name `<cluster-name>`.
-    1. Sets the number of replicas on the control plane object from `spec.topology.controlPlane.replicas`.
+    1. Checks if the control plane object implements support for the Replicas field. If yes, sets the number of replicas on the control plane object from `spec.topology.controlPlane.replicas`, else ignore the field.
     1. Sets the k8s version on the control plane object from the `spec.topology.version`.
     1. Add the following labels to the control plane object:
        ```yaml

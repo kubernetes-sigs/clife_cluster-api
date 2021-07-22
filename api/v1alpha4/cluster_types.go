@@ -96,7 +96,12 @@ type ControlPlaneTopology struct {
 	Metadata ObjectMeta `json:"metadata,omitempty"`
 
 	// Replicas is the number of control plane nodes.
-	Replicas int `json:"replicas"`
+	//
+	// A nil value indicates that the ControlPlane object is created without the number of Replicas.
+	// The underlying assumption is that the control plane provider does not support this field.
+	// When specified against a control plane provider that lacks support for this field, this value will be ignored.
+	// +optional
+	Replicas *int `json:"replicas,omitempty"`
 }
 
 // WorkersTopology represents the different sets of worker nodes in the cluster.
