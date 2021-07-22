@@ -49,47 +49,51 @@ var _ webhook.Validator = &KubeadmControlPlane{}
 
 // Default implements webhook.Defaulter so a webhook will be registered for the type.
 func (in *KubeadmControlPlane) Default() {
-	if in.Spec.Replicas == nil {
+	defaultKubeadmControlPlaneSpec(&in.Spec, in.Namespace)
+}
+
+func defaultKubeadmControlPlaneSpec(s *KubeadmControlPlaneSpec, namespace string) {
+	if s.Replicas == nil {
 		replicas := int32(1)
-		in.Spec.Replicas = &replicas
+		s.Replicas = &replicas
 	}
 
-	if in.Spec.MachineTemplate.InfrastructureRef.Namespace == "" {
-		in.Spec.MachineTemplate.InfrastructureRef.Namespace = in.Namespace
+	if s.MachineTemplate.InfrastructureRef.Namespace == "" {
+		s.MachineTemplate.InfrastructureRef.Namespace = namespace
 	}
 
-	if !strings.HasPrefix(in.Spec.Version, "v") {
-		in.Spec.Version = "v" + in.Spec.Version
+	if !strings.HasPrefix(s.Version, "v") {
+		s.Version = "v" + s.Version
 	}
 
 	ios1 := intstr.FromInt(1)
 
-	if in.Spec.RolloutStrategy == nil {
-		in.Spec.RolloutStrategy = &RolloutStrategy{}
+	if s.RolloutStrategy == nil {
+		s.RolloutStrategy = &RolloutStrategy{}
 	}
 
 	// Enforce RollingUpdate strategy and default MaxSurge if not set.
-	if in.Spec.RolloutStrategy != nil {
-		if len(in.Spec.RolloutStrategy.Type) == 0 {
-			in.Spec.RolloutStrategy.Type = RollingUpdateStrategyType
+	if s.RolloutStrategy != nil {
+		if len(s.RolloutStrategy.Type) == 0 {
+			s.RolloutStrategy.Type = RollingUpdateStrategyType
 		}
-		if in.Spec.RolloutStrategy.Type == RollingUpdateStrategyType {
-			if in.Spec.RolloutStrategy.RollingUpdate == nil {
-				in.Spec.RolloutStrategy.RollingUpdate = &RollingUpdate{}
+		if s.RolloutStrategy.Type == RollingUpdateStrategyType {
+			if s.RolloutStrategy.RollingUpdate == nil {
+				s.RolloutStrategy.RollingUpdate = &RollingUpdate{}
 			}
-			in.Spec.RolloutStrategy.RollingUpdate.MaxSurge = intstr.ValueOrDefault(in.Spec.RolloutStrategy.RollingUpdate.MaxSurge, ios1)
+			s.RolloutStrategy.RollingUpdate.MaxSurge = intstr.ValueOrDefault(s.RolloutStrategy.RollingUpdate.MaxSurge, ios1)
 		}
 	}
 }
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type.
 func (in *KubeadmControlPlane) ValidateCreate() error {
-	allErrs := in.validateCommon()
-	allErrs = append(allErrs, in.validateEtcd(nil)...)
+	spec := in.Spec
+	allErrs := validateKubeadmControlPlaneSpec(spec, in.Namespace, field.NewPath("spec"))
+	allErrs = append(allErrs, validateEtcd(&spec, nil)...)
 	if len(allErrs) > 0 {
 		return apierrors.NewInvalid(GroupVersion.WithKind("KubeadmControlPlane").GroupKind(), in.Name, allErrs)
 	}
-
 	return nil
 }
 
@@ -141,9 +145,12 @@ func (in *KubeadmControlPlane) ValidateUpdate(old runtime.Object) error {
 		{spec, "rolloutStrategy", "*"},
 	}
 
-	allErrs := in.validateCommon()
+	allErrs := validateKubeadmControlPlaneSpec(in.Spec, in.Namespace, field.NewPath("spec"))
 
-	prev := old.(*KubeadmControlPlane)
+	prev, ok := old.(*KubeadmControlPlane)
+	if !ok {
+		return apierrors.NewBadRequest(fmt.Sprintf("expecting KubeadmControlPlane but got a %T", old))
+	}
 
 	originalJSON, err := json.Marshal(prev)
 	if err != nil {
@@ -180,7 +187,7 @@ func (in *KubeadmControlPlane) ValidateUpdate(old runtime.Object) error {
 	}
 
 	allErrs = append(allErrs, in.validateVersion(prev.Spec.Version)...)
-	allErrs = append(allErrs, in.validateEtcd(prev)...)
+	allErrs = append(allErrs, validateEtcd(&in.Spec, &prev.Spec)...)
 	allErrs = append(allErrs, in.validateCoreDNSVersion(prev)...)
 
 	if len(allErrs) > 0 {
@@ -188,6 +195,190 @@ func (in *KubeadmControlPlane) ValidateUpdate(old runtime.Object) error {
 	}
 
 	return nil
+}
+
+func validateKubeadmControlPlaneSpec(s KubeadmControlPlaneSpec, namespace string, pathPrefix *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	if s.Replicas == nil {
+		allErrs = append(
+			allErrs,
+			field.Required(
+				pathPrefix.Child("replicas"),
+				"is required",
+			),
+		)
+	} else if *s.Replicas <= 0 {
+		// The use of the scale subresource should provide a guarantee that negative values
+		// should not be accepted for this field, but since we have to validate that Replicas != 0
+		// it doesn't hurt to also additionally validate for negative numbers here as well.
+		allErrs = append(
+			allErrs,
+			field.Forbidden(
+				pathPrefix.Child("replicas"),
+				"cannot be less than or equal to 0",
+			),
+		)
+	}
+
+	externalEtcd := false
+	if s.KubeadmConfigSpec.ClusterConfiguration != nil {
+		if s.KubeadmConfigSpec.ClusterConfiguration.Etcd.External != nil {
+			externalEtcd = true
+		}
+	}
+
+	if !externalEtcd {
+		if s.Replicas != nil && *s.Replicas%2 == 0 {
+			allErrs = append(
+				allErrs,
+				field.Forbidden(
+					pathPrefix.Child("replicas"),
+					"cannot be an even number when using managed etcd",
+				),
+			)
+		}
+	}
+
+	if s.MachineTemplate.InfrastructureRef.APIVersion == "" {
+		allErrs = append(
+			allErrs,
+			field.Invalid(
+				pathPrefix.Child("machineTemplate", "infrastructure", "apiVersion"),
+				s.MachineTemplate.InfrastructureRef.APIVersion,
+				"cannot be empty",
+			),
+		)
+	}
+	if s.MachineTemplate.InfrastructureRef.Kind == "" {
+		allErrs = append(
+			allErrs,
+			field.Invalid(
+				pathPrefix.Child("machineTemplate", "infrastructure", "kind"),
+				s.MachineTemplate.InfrastructureRef.Kind,
+				"cannot be empty",
+			),
+		)
+	}
+	if s.MachineTemplate.InfrastructureRef.Namespace != namespace {
+		allErrs = append(
+			allErrs,
+			field.Invalid(
+				pathPrefix.Child("machineTemplate", "infrastructure", "namespace"),
+				s.MachineTemplate.InfrastructureRef.Namespace,
+				"must match metadata.namespace",
+			),
+		)
+	}
+
+	if !version.KubeSemver.MatchString(s.Version) {
+		allErrs = append(allErrs, field.Invalid(pathPrefix.Child("version"), s.Version, "must be a valid semantic version"))
+	}
+
+	if s.RolloutStrategy != nil {
+		if s.RolloutStrategy.Type != RollingUpdateStrategyType {
+			allErrs = append(
+				allErrs,
+				field.Required(
+					pathPrefix.Child("rolloutStrategy", "type"),
+					"only RollingUpdateStrategyType is supported",
+				),
+			)
+		}
+
+		ios1 := intstr.FromInt(1)
+		ios0 := intstr.FromInt(0)
+
+		if *s.RolloutStrategy.RollingUpdate.MaxSurge == ios0 && *s.Replicas < int32(3) {
+			allErrs = append(
+				allErrs,
+				field.Required(
+					pathPrefix.Child("rolloutStrategy", "rollingUpdate"),
+					"when KubeadmControlPlane is configured to scale-in, replica count needs to be at least 3",
+				),
+			)
+		}
+
+		if *s.RolloutStrategy.RollingUpdate.MaxSurge != ios1 && *s.RolloutStrategy.RollingUpdate.MaxSurge != ios0 {
+			allErrs = append(
+				allErrs,
+				field.Required(
+					pathPrefix.Child("rolloutStrategy", "rollingUpdate", "maxSurge"),
+					"value must be 1 or 0",
+				),
+			)
+		}
+	}
+
+	if s.KubeadmConfigSpec.ClusterConfiguration == nil {
+		return allErrs
+	}
+	// TODO: Remove when kubeadm types include OpenAPI validation
+	if !container.ImageTagIsValid(s.KubeadmConfigSpec.ClusterConfiguration.DNS.ImageTag) {
+		allErrs = append(
+			allErrs,
+			field.Forbidden(
+				pathPrefix.Child("kubeadmConfigSpec", "clusterConfiguration", "dns", "imageTag"),
+				fmt.Sprintf("tag %s is invalid", s.KubeadmConfigSpec.ClusterConfiguration.DNS.ImageTag),
+			),
+		)
+	}
+
+	return allErrs
+}
+
+func validateEtcd(s, prev *KubeadmControlPlaneSpec) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	if s.KubeadmConfigSpec.ClusterConfiguration == nil {
+		return allErrs
+	}
+
+	// TODO: Remove when kubeadm types include OpenAPI validation
+	if s.KubeadmConfigSpec.ClusterConfiguration.Etcd.Local != nil && !container.ImageTagIsValid(s.KubeadmConfigSpec.ClusterConfiguration.Etcd.Local.ImageTag) {
+		allErrs = append(
+			allErrs,
+			field.Forbidden(
+				field.NewPath("spec", "kubeadmConfigSpec", "clusterConfiguration", "etcd", "local", "imageTag"),
+				fmt.Sprintf("tag %s is invalid", s.KubeadmConfigSpec.ClusterConfiguration.Etcd.Local.ImageTag),
+			),
+		)
+	}
+
+	if s.KubeadmConfigSpec.ClusterConfiguration.Etcd.Local != nil && s.KubeadmConfigSpec.ClusterConfiguration.Etcd.External != nil {
+		allErrs = append(
+			allErrs,
+			field.Forbidden(
+				field.NewPath("spec", "kubeadmConfigSpec", "clusterConfiguration", "etcd", "local"),
+				"cannot have both external and local etcd",
+			),
+		)
+	}
+
+	// update validations
+	if prev != nil && prev.KubeadmConfigSpec.ClusterConfiguration != nil {
+		if s.KubeadmConfigSpec.ClusterConfiguration.Etcd.External != nil && prev.KubeadmConfigSpec.ClusterConfiguration.Etcd.Local != nil {
+			allErrs = append(
+				allErrs,
+				field.Forbidden(
+					field.NewPath("spec", "kubeadmConfigSpec", "clusterConfiguration", "etcd", "external"),
+					"cannot change between external and local etcd",
+				),
+			)
+		}
+
+		if s.KubeadmConfigSpec.ClusterConfiguration.Etcd.Local != nil && prev.KubeadmConfigSpec.ClusterConfiguration.Etcd.External != nil {
+			allErrs = append(
+				allErrs,
+				field.Forbidden(
+					field.NewPath("spec", "kubeadmConfigSpec", "clusterConfiguration", "etcd", "local"),
+					"cannot change between external and local etcd",
+				),
+			)
+		}
+	}
+
+	return allErrs
 }
 
 func allowed(allowList [][]string, path []string) bool {
@@ -236,139 +427,6 @@ func paths(path []string, diff map[string]interface{}) [][]string {
 	return allPaths
 }
 
-func (in *KubeadmControlPlane) validateCommon() (allErrs field.ErrorList) {
-	if in.Spec.Replicas == nil {
-		allErrs = append(
-			allErrs,
-			field.Required(
-				field.NewPath("spec", "replicas"),
-				"is required",
-			),
-		)
-	} else if *in.Spec.Replicas <= 0 {
-		// The use of the scale subresource should provide a guarantee that negative values
-		// should not be accepted for this field, but since we have to validate that Replicas != 0
-		// it doesn't hurt to also additionally validate for negative numbers here as well.
-		allErrs = append(
-			allErrs,
-			field.Forbidden(
-				field.NewPath("spec", "replicas"),
-				"cannot be less than or equal to 0",
-			),
-		)
-	}
-
-	externalEtcd := false
-	if in.Spec.KubeadmConfigSpec.ClusterConfiguration != nil {
-		if in.Spec.KubeadmConfigSpec.ClusterConfiguration.Etcd.External != nil {
-			externalEtcd = true
-		}
-	}
-
-	if !externalEtcd {
-		if in.Spec.Replicas != nil && *in.Spec.Replicas%2 == 0 {
-			allErrs = append(
-				allErrs,
-				field.Forbidden(
-					field.NewPath("spec", "replicas"),
-					"cannot be an even number when using managed etcd",
-				),
-			)
-		}
-	}
-
-	if in.Spec.MachineTemplate.InfrastructureRef.APIVersion == "" {
-		allErrs = append(
-			allErrs,
-			field.Invalid(
-				field.NewPath("spec", "machineTemplate", "infrastructure", "apiVersion"),
-				in.Spec.MachineTemplate.InfrastructureRef.APIVersion,
-				"cannot be empty",
-			),
-		)
-	}
-	if in.Spec.MachineTemplate.InfrastructureRef.Kind == "" {
-		allErrs = append(
-			allErrs,
-			field.Invalid(
-				field.NewPath("spec", "machineTemplate", "infrastructure", "kind"),
-				in.Spec.MachineTemplate.InfrastructureRef.Kind,
-				"cannot be empty",
-			),
-		)
-	}
-	if in.Spec.MachineTemplate.InfrastructureRef.Namespace != in.Namespace {
-		allErrs = append(
-			allErrs,
-			field.Invalid(
-				field.NewPath("spec", "machineTemplate", "infrastructure", "namespace"),
-				in.Spec.MachineTemplate.InfrastructureRef.Namespace,
-				"must match metadata.namespace",
-			),
-		)
-	}
-
-	if !version.KubeSemver.MatchString(in.Spec.Version) {
-		allErrs = append(allErrs, field.Invalid(field.NewPath("spec", "version"), in.Spec.Version, "must be a valid semantic version"))
-	}
-
-	if in.Spec.RolloutStrategy != nil {
-		if in.Spec.RolloutStrategy.Type != RollingUpdateStrategyType {
-			allErrs = append(
-				allErrs,
-				field.Required(
-					field.NewPath("spec", "rolloutStrategy", "type"),
-					"only RollingUpdateStrategyType is supported",
-				),
-			)
-		}
-
-		ios1 := intstr.FromInt(1)
-		ios0 := intstr.FromInt(0)
-
-		if *in.Spec.RolloutStrategy.RollingUpdate.MaxSurge == ios0 && *in.Spec.Replicas < int32(3) {
-			allErrs = append(
-				allErrs,
-				field.Required(
-					field.NewPath("spec", "rolloutStrategy", "rollingUpdate"),
-					"when KubeadmControlPlane is configured to scale-in, replica count needs to be at least 3",
-				),
-			)
-		}
-
-		if *in.Spec.RolloutStrategy.RollingUpdate.MaxSurge != ios1 && *in.Spec.RolloutStrategy.RollingUpdate.MaxSurge != ios0 {
-			allErrs = append(
-				allErrs,
-				field.Required(
-					field.NewPath("spec", "rolloutStrategy", "rollingUpdate", "maxSurge"),
-					"value must be 1 or 0",
-				),
-			)
-		}
-	}
-
-	allErrs = append(allErrs, in.validateCoreDNSImage()...)
-
-	return allErrs
-}
-
-func (in *KubeadmControlPlane) validateCoreDNSImage() (allErrs field.ErrorList) {
-	if in.Spec.KubeadmConfigSpec.ClusterConfiguration == nil {
-		return allErrs
-	}
-	// TODO: Remove when kubeadm types include OpenAPI validation
-	if !container.ImageTagIsValid(in.Spec.KubeadmConfigSpec.ClusterConfiguration.DNS.ImageTag) {
-		allErrs = append(
-			allErrs,
-			field.Forbidden(
-				field.NewPath("spec", "kubeadmConfigSpec", "clusterConfiguration", "dns", "imageTag"),
-				fmt.Sprintf("tag %s is invalid", in.Spec.KubeadmConfigSpec.ClusterConfiguration.DNS.ImageTag),
-			),
-		)
-	}
-	return allErrs
-}
-
 func (in *KubeadmControlPlane) validateCoreDNSVersion(prev *KubeadmControlPlane) (allErrs field.ErrorList) {
 	if in.Spec.KubeadmConfigSpec.ClusterConfiguration == nil || prev.Spec.KubeadmConfigSpec.ClusterConfiguration == nil {
 		return allErrs
@@ -410,58 +468,6 @@ func (in *KubeadmControlPlane) validateCoreDNSVersion(prev *KubeadmControlPlane)
 				fmt.Sprintf("cannot migrate CoreDNS up to '%v' from '%v': %v", toVersion, fromVersion, err),
 			),
 		)
-	}
-
-	return allErrs
-}
-
-func (in *KubeadmControlPlane) validateEtcd(prev *KubeadmControlPlane) (allErrs field.ErrorList) {
-	if in.Spec.KubeadmConfigSpec.ClusterConfiguration == nil {
-		return allErrs
-	}
-
-	// TODO: Remove when kubeadm types include OpenAPI validation
-	if in.Spec.KubeadmConfigSpec.ClusterConfiguration.Etcd.Local != nil && !container.ImageTagIsValid(in.Spec.KubeadmConfigSpec.ClusterConfiguration.Etcd.Local.ImageTag) {
-		allErrs = append(
-			allErrs,
-			field.Forbidden(
-				field.NewPath("spec", "kubeadmConfigSpec", "clusterConfiguration", "etcd", "local", "imageTag"),
-				fmt.Sprintf("tag %s is invalid", in.Spec.KubeadmConfigSpec.ClusterConfiguration.Etcd.Local.ImageTag),
-			),
-		)
-	}
-
-	if in.Spec.KubeadmConfigSpec.ClusterConfiguration.Etcd.Local != nil && in.Spec.KubeadmConfigSpec.ClusterConfiguration.Etcd.External != nil {
-		allErrs = append(
-			allErrs,
-			field.Forbidden(
-				field.NewPath("spec", "kubeadmConfigSpec", "clusterConfiguration", "etcd", "local"),
-				"cannot have both external and local etcd",
-			),
-		)
-	}
-
-	// update validations
-	if prev != nil && prev.Spec.KubeadmConfigSpec.ClusterConfiguration != nil {
-		if in.Spec.KubeadmConfigSpec.ClusterConfiguration.Etcd.External != nil && prev.Spec.KubeadmConfigSpec.ClusterConfiguration.Etcd.Local != nil {
-			allErrs = append(
-				allErrs,
-				field.Forbidden(
-					field.NewPath("spec", "kubeadmConfigSpec", "clusterConfiguration", "etcd", "external"),
-					"cannot change between external and local etcd",
-				),
-			)
-		}
-
-		if in.Spec.KubeadmConfigSpec.ClusterConfiguration.Etcd.Local != nil && prev.Spec.KubeadmConfigSpec.ClusterConfiguration.Etcd.External != nil {
-			allErrs = append(
-				allErrs,
-				field.Forbidden(
-					field.NewPath("spec", "kubeadmConfigSpec", "clusterConfiguration", "etcd", "local"),
-					"cannot change between external and local etcd",
-				),
-			)
-		}
 	}
 
 	return allErrs
