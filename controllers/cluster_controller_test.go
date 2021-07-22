@@ -23,25 +23,40 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha4"
 	expv1 "sigs.k8s.io/cluster-api/exp/api/v1alpha4"
 	"sigs.k8s.io/cluster-api/feature"
 	"sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/cluster-api/util/patch"
-	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+)
+
+const (
+	clusterReconcileNamespace = "test-cluster-reconcile"
 )
 
 func TestClusterReconciler(t *testing.T) {
+	ns, err := env.CreateNamespace(ctx, clusterReconcileNamespace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := env.Delete(ctx, ns); err != nil {
+			t.Fatal(err)
+		}
+	}()
+
 	t.Run("Should create a Cluster", func(t *testing.T) {
 		g := NewWithT(t)
 
 		instance := &clusterv1.Cluster{
 			ObjectMeta: metav1.ObjectMeta{
 				GenerateName: "test1-",
-				Namespace:    "default",
+				Namespace:    ns.Name,
 			},
 			Spec: clusterv1.ClusterSpec{},
 		}
@@ -70,7 +85,7 @@ func TestClusterReconciler(t *testing.T) {
 		cluster := &clusterv1.Cluster{
 			ObjectMeta: metav1.ObjectMeta{
 				GenerateName: "test2-",
-				Namespace:    "default",
+				Namespace:    ns.Name,
 			},
 		}
 		g.Expect(env.Create(ctx, cluster)).To(Succeed())
@@ -116,7 +131,7 @@ func TestClusterReconciler(t *testing.T) {
 		cluster := &clusterv1.Cluster{
 			ObjectMeta: metav1.ObjectMeta{
 				GenerateName: "test3-",
-				Namespace:    "default",
+				Namespace:    ns.Name,
 			},
 		}
 		g.Expect(env.Create(ctx, cluster)).To(Succeed())
@@ -160,7 +175,7 @@ func TestClusterReconciler(t *testing.T) {
 		cluster := &clusterv1.Cluster{
 			ObjectMeta: metav1.ObjectMeta{
 				GenerateName: "test4-",
-				Namespace:    "default",
+				Namespace:    ns.Name,
 			},
 		}
 
@@ -208,7 +223,7 @@ func TestClusterReconciler(t *testing.T) {
 		cluster := &clusterv1.Cluster{
 			ObjectMeta: metav1.ObjectMeta{
 				GenerateName: "test5-",
-				Namespace:    "default",
+				Namespace:    ns.Name,
 			},
 		}
 		g.Expect(env.Create(ctx, cluster)).To(Succeed())
@@ -253,7 +268,7 @@ func TestClusterReconciler(t *testing.T) {
 		cluster := &clusterv1.Cluster{
 			ObjectMeta: metav1.ObjectMeta{
 				GenerateName: "test6-",
-				Namespace:    corev1.NamespaceDefault,
+				Namespace:    ns.Name,
 			},
 		}
 
@@ -289,7 +304,7 @@ func TestClusterReconciler(t *testing.T) {
 		machine := &clusterv1.Machine{
 			ObjectMeta: metav1.ObjectMeta{
 				GenerateName: "test6-",
-				Namespace:    corev1.NamespaceDefault,
+				Namespace:    ns.Name,
 				Labels: map[string]string{
 					clusterv1.MachineControlPlaneLabelName: "",
 				},

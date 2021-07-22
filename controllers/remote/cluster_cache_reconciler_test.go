@@ -36,16 +36,15 @@ import (
 func TestClusterCacheReconciler(t *testing.T) {
 	t.Run("When running the ClusterCacheReconciler", func(t *testing.T) {
 		var (
-			mgr           manager.Manager
-			mgrContext    context.Context
-			mgrCancel     context.CancelFunc
-			cct           *ClusterCacheTracker
-			k8sClient     client.Client
-			testNamespace *corev1.Namespace
+			mgr        manager.Manager
+			mgrContext context.Context
+			mgrCancel  context.CancelFunc
+			cct        *ClusterCacheTracker
+			k8sClient  client.Client
 		)
 
 		// createAndWatchCluster creates a new cluster and ensures the clusterCacheTracker has a clusterAccessor for it
-		createAndWatchCluster := func(clusterName string, g *WithT) {
+		createAndWatchCluster := func(clusterName string, testNamespace *corev1.Namespace, g *WithT) {
 			t.Log(fmt.Sprintf("Creating a cluster %q", clusterName))
 			testCluster := &clusterv1.Cluster{
 				ObjectMeta: metav1.ObjectMeta{
@@ -75,7 +74,7 @@ func TestClusterCacheReconciler(t *testing.T) {
 			g.Expect(err).NotTo(HaveOccurred())
 		}
 
-		setup := func(t *testing.T, g *WithT) {
+		setup := func(t *testing.T, g *WithT) *corev1.Namespace {
 			t.Log("Setting up a new manager")
 			var err error
 			mgr, err = manager.New(env.Config, manager.Options{
@@ -106,28 +105,32 @@ func TestClusterCacheReconciler(t *testing.T) {
 			k8sClient = mgr.GetClient()
 
 			t.Log("Creating a namespace for the test")
-			testNamespace = &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{GenerateName: "cluster-cache-test-"}}
-			g.Expect(k8sClient.Create(ctx, testNamespace)).To(Succeed())
+			ns, err := env.CreateNamespace(ctx, "cluster-cache-test")
+			g.Expect(err).To(BeNil())
 
 			t.Log("Creating clusters to test with")
-			createAndWatchCluster("cluster-1", g)
-			createAndWatchCluster("cluster-2", g)
-			createAndWatchCluster("cluster-3", g)
+			createAndWatchCluster("cluster-1", ns, g)
+			createAndWatchCluster("cluster-2", ns, g)
+			createAndWatchCluster("cluster-3", ns, g)
+
+			return ns
 		}
 
-		teardown := func(t *testing.T, g *WithT) {
+		teardown := func(t *testing.T, g *WithT, ns *corev1.Namespace) {
 			t.Log("Deleting any Secrets")
 			g.Expect(cleanupTestSecrets(ctx, k8sClient)).To(Succeed())
 			t.Log("Deleting any Clusters")
 			g.Expect(cleanupTestClusters(ctx, k8sClient)).To(Succeed())
+			t.Log("Deleting Namespace")
+			g.Expect(env.Delete(ctx, ns)).To(Succeed())
 			t.Log("Stopping the manager")
 			mgrCancel()
 		}
 
 		t.Run("should remove clusterAccessors when clusters are deleted", func(t *testing.T) {
 			g := NewWithT(t)
-			setup(t, g)
-			defer teardown(t, g)
+			testNamespace := setup(t, g)
+			defer teardown(t, g, testNamespace)
 
 			for _, clusterName := range []string{"cluster-1", "cluster-2", "cluster-3"} {
 				t.Log(fmt.Sprintf("Deleting cluster %q", clusterName))

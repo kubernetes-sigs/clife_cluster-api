@@ -50,18 +50,17 @@ func mapper(i client.Object) []reconcile.Request {
 func TestClusterCacheTracker(t *testing.T) {
 	t.Run("watching", func(t *testing.T) {
 		var (
-			mgr           manager.Manager
-			mgrContext    context.Context
-			mgrCancel     context.CancelFunc
-			cct           *ClusterCacheTracker
-			k8sClient     client.Client
-			testNamespace *corev1.Namespace
-			c             *testController
-			w             Watcher
-			clusterA      *clusterv1.Cluster
+			mgr        manager.Manager
+			mgrContext context.Context
+			mgrCancel  context.CancelFunc
+			cct        *ClusterCacheTracker
+			k8sClient  client.Client
+			c          *testController
+			w          Watcher
+			clusterA   *clusterv1.Cluster
 		)
 
-		setup := func(t *testing.T, g *WithT) {
+		setup := func(t *testing.T, g *WithT) *corev1.Namespace {
 			t.Log("Setting up a new manager")
 			var err error
 			mgr, err = manager.New(env.Config, manager.Options{
@@ -98,13 +97,13 @@ func TestClusterCacheTracker(t *testing.T) {
 			g.Expect(err).NotTo(HaveOccurred())
 
 			t.Log("Creating a namespace for the test")
-			testNamespace = &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{GenerateName: "cluster-cache-test-"}}
-			g.Expect(k8sClient.Create(ctx, testNamespace)).To(Succeed())
+			ns, err := env.CreateNamespace(ctx, "cluster-cache-tracker-test")
+			g.Expect(err).To(BeNil())
 
 			t.Log("Creating a test cluster")
 			clusterA = &clusterv1.Cluster{
 				ObjectMeta: metav1.ObjectMeta{
-					Namespace:   testNamespace.GetName(),
+					Namespace:   ns.GetName(),
 					Name:        "test-cluster",
 					Annotations: make(map[string]string),
 				},
@@ -116,21 +115,25 @@ func TestClusterCacheTracker(t *testing.T) {
 
 			t.Log("Creating a test cluster kubeconfig")
 			g.Expect(env.CreateKubeconfigSecret(ctx, clusterA)).To(Succeed())
+
+			return ns
 		}
 
-		teardown := func(t *testing.T, g *WithT) {
+		teardown := func(t *testing.T, g *WithT, ns *corev1.Namespace) {
 			t.Log("Deleting any Secrets")
 			g.Expect(cleanupTestSecrets(ctx, k8sClient)).To(Succeed())
 			t.Log("Deleting any Clusters")
 			g.Expect(cleanupTestClusters(ctx, k8sClient)).To(Succeed())
+			t.Log("Deleting Namespace")
+			g.Expect(env.Delete(ctx, ns)).To(Succeed())
 			t.Log("Stopping the manager")
 			mgrCancel()
 		}
 
 		t.Run("with the same name should succeed and not have duplicates", func(t *testing.T) {
 			g := NewWithT(t)
-			setup(t, g)
-			defer teardown(t, g)
+			ns := setup(t, g)
+			defer teardown(t, g, ns)
 
 			t.Log("Creating the watch")
 			g.Expect(cct.Watch(ctx, WatchInput{

@@ -34,17 +34,17 @@ import (
 var (
 	clusterWithValidKubeConfig = client.ObjectKey{
 		Name:      "test1",
-		Namespace: "test",
+		Namespace: metav1.NamespaceDefault,
 	}
 
 	clusterWithInvalidKubeConfig = client.ObjectKey{
 		Name:      "test2",
-		Namespace: "test",
+		Namespace: metav1.NamespaceDefault,
 	}
 
 	clusterWithNoKubeConfig = client.ObjectKey{
 		Name:      "test3",
-		Namespace: "test",
+		Namespace: metav1.NamespaceDefault,
 	}
 
 	validKubeConfig = `
@@ -67,7 +67,7 @@ users:
 	validSecret = &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test1-kubeconfig",
-			Namespace: "test",
+			Namespace: metav1.NamespaceDefault,
 		},
 		Data: map[string][]byte{
 			secret.KubeconfigDataName: []byte(validKubeConfig),
@@ -77,7 +77,7 @@ users:
 	invalidSecret = &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test2-kubeconfig",
-			Namespace: "test",
+			Namespace: metav1.NamespaceDefault,
 		},
 		Data: map[string][]byte{
 			secret.KubeconfigDataName: []byte("Not valid!!1"),

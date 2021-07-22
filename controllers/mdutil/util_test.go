@@ -767,7 +767,7 @@ func TestReplicasAnnotationsNeedUpdate(t *testing.T) {
 		{
 			name: "test Annotations nil",
 			machineSet: &clusterv1.MachineSet{
-				ObjectMeta: metav1.ObjectMeta{Name: "hello", Namespace: "test"},
+				ObjectMeta: metav1.ObjectMeta{Name: "hello", Namespace: metav1.NamespaceDefault},
 				Spec: clusterv1.MachineSetSpec{
 					Selector: metav1.LabelSelector{MatchLabels: map[string]string{"foo": "bar"}},
 				},
@@ -779,7 +779,7 @@ func TestReplicasAnnotationsNeedUpdate(t *testing.T) {
 			machineSet: &clusterv1.MachineSet{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:        "hello",
-					Namespace:   "test",
+					Namespace:   metav1.NamespaceDefault,
 					Annotations: map[string]string{clusterv1.DesiredReplicasAnnotation: "8", clusterv1.MaxReplicasAnnotation: maxReplicas},
 				},
 				Spec: clusterv1.MachineSetSpec{
@@ -793,7 +793,7 @@ func TestReplicasAnnotationsNeedUpdate(t *testing.T) {
 			machineSet: &clusterv1.MachineSet{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:        "hello",
-					Namespace:   "test",
+					Namespace:   metav1.NamespaceDefault,
 					Annotations: map[string]string{clusterv1.DesiredReplicasAnnotation: desiredReplicas, clusterv1.MaxReplicasAnnotation: "16"},
 				},
 				Spec: clusterv1.MachineSetSpec{
@@ -807,7 +807,7 @@ func TestReplicasAnnotationsNeedUpdate(t *testing.T) {
 			machineSet: &clusterv1.MachineSet{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:        "hello",
-					Namespace:   "test",
+					Namespace:   metav1.NamespaceDefault,
 					Annotations: map[string]string{clusterv1.DesiredReplicasAnnotation: desiredReplicas, clusterv1.MaxReplicasAnnotation: maxReplicas},
 				},
 				Spec: clusterv1.MachineSetSpec{

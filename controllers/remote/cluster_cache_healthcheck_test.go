@@ -44,7 +44,6 @@ func TestClusterCacheHealthCheck(t *testing.T) {
 		var mgrCancel context.CancelFunc
 		var k8sClient client.Client
 
-		var testNamespace *corev1.Namespace
 		var testClusterKey client.ObjectKey
 		var cct *ClusterCacheTracker
 		var cc *stoppableCache
@@ -53,7 +52,7 @@ func TestClusterCacheHealthCheck(t *testing.T) {
 		var testPollTimeout = 50 * time.Millisecond
 		var testUnhealthyThreshold = 3
 
-		setup := func(t *testing.T, g *WithT) {
+		setup := func(t *testing.T, g *WithT) *corev1.Namespace {
 			t.Log("Setting up a new manager")
 			var err error
 			mgr, err = manager.New(env.Config, manager.Options{
@@ -85,14 +84,14 @@ func TestClusterCacheHealthCheck(t *testing.T) {
 			g.Expect(err).NotTo(HaveOccurred())
 
 			t.Log("Creating a namespace for the test")
-			testNamespace = &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{GenerateName: "cluster-cache-test-"}}
-			g.Expect(k8sClient.Create(ctx, testNamespace)).To(Succeed())
+			ns, err := env.CreateNamespace(ctx, "cluster-cache-health-test")
+			g.Expect(err).To(BeNil())
 
 			t.Log("Creating a test cluster")
 			testCluster := &clusterv1.Cluster{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-cluster",
-					Namespace: testNamespace.GetName(),
+					Namespace: ns.GetName(),
 				},
 			}
 			g.Expect(k8sClient.Create(ctx, testCluster)).To(Succeed())
@@ -108,13 +107,17 @@ func TestClusterCacheHealthCheck(t *testing.T) {
 			_, cancel := context.WithCancel(ctx)
 			cc = &stoppableCache{cancelFunc: cancel}
 			cct.clusterAccessors[testClusterKey] = &clusterAccessor{cache: cc}
+
+			return ns
 		}
 
-		teardown := func(t *testing.T, g *WithT) {
+		teardown := func(t *testing.T, g *WithT, ns *corev1.Namespace) {
 			t.Log("Deleting any Secrets")
 			g.Expect(cleanupTestSecrets(ctx, k8sClient)).To(Succeed())
 			t.Log("Deleting any Clusters")
 			g.Expect(cleanupTestClusters(ctx, k8sClient)).To(Succeed())
+			t.Log("Deleting Namespace")
+			g.Expect(env.Delete(ctx, ns)).To(Succeed())
 			t.Log("Stopping the manager")
 			cc.cancelFunc()
 			mgrCancel()
@@ -122,20 +125,19 @@ func TestClusterCacheHealthCheck(t *testing.T) {
 
 		t.Run("with a healthy cluster", func(t *testing.T) {
 			g := NewWithT(t)
-			setup(t, g)
-			defer teardown(t, g)
+			ns := setup(t, g)
+			defer teardown(t, g, ns)
 
 			ctx, cancel := context.WithCancel(ctx)
 			defer cancel()
 
-			// TODO(community): Fill in these field names.
 			go cct.healthCheckCluster(ctx, &healthCheckInput{
-				testClusterKey,
-				env.Config,
-				testPollInterval,
-				testPollTimeout,
-				testUnhealthyThreshold,
-				"/",
+				cluster:            testClusterKey,
+				cfg:                env.Config,
+				interval:           testPollInterval,
+				requestTimeout:     testPollTimeout,
+				unhealthyThreshold: testUnhealthyThreshold,
+				path:               "/",
 			})
 
 			// Make sure this passes for at least two seconds, to give the health check goroutine time to run.
@@ -144,21 +146,20 @@ func TestClusterCacheHealthCheck(t *testing.T) {
 
 		t.Run("with an invalid path", func(t *testing.T) {
 			g := NewWithT(t)
-			setup(t, g)
-			defer teardown(t, g)
+			ns := setup(t, g)
+			defer teardown(t, g, ns)
 
 			ctx, cancel := context.WithCancel(ctx)
 			defer cancel()
 
-			// TODO(community): Fill in these field names.
 			go cct.healthCheckCluster(ctx,
 				&healthCheckInput{
-					testClusterKey,
-					env.Config,
-					testPollInterval,
-					testPollTimeout,
-					testUnhealthyThreshold,
-					"/clusterAccessor",
+					cluster:            testClusterKey,
+					cfg:                env.Config,
+					interval:           testPollInterval,
+					requestTimeout:     testPollTimeout,
+					unhealthyThreshold: testUnhealthyThreshold,
+					path:               "/clusterAccessor",
 				})
 
 			// This should succeed after N consecutive failed requests.
@@ -167,8 +168,8 @@ func TestClusterCacheHealthCheck(t *testing.T) {
 
 		t.Run("with an invalid config", func(t *testing.T) {
 			g := NewWithT(t)
-			setup(t, g)
-			defer teardown(t, g)
+			ns := setup(t, g)
+			defer teardown(t, g, ns)
 
 			ctx, cancel := context.WithCancel(ctx)
 			defer cancel()
@@ -183,14 +184,13 @@ func TestClusterCacheHealthCheck(t *testing.T) {
 			config := rest.CopyConfig(env.Config)
 			config.Host = fmt.Sprintf("http://127.0.0.1:%d", l.Addr().(*net.TCPAddr).Port)
 
-			// TODO(community): Fill in these field names.
 			go cct.healthCheckCluster(ctx, &healthCheckInput{
-				testClusterKey,
-				config,
-				testPollInterval,
-				testPollTimeout,
-				testUnhealthyThreshold,
-				"/",
+				cluster:            testClusterKey,
+				cfg:                config,
+				interval:           testPollInterval,
+				requestTimeout:     testPollTimeout,
+				unhealthyThreshold: testUnhealthyThreshold,
+				path:               "/",
 			})
 
 			// This should succeed after N consecutive failed requests.

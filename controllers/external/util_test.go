@@ -37,7 +37,6 @@ var (
 )
 
 const (
-	testNamespace   = "test"
 	testClusterName = "test-cluster"
 )
 
@@ -53,18 +52,18 @@ func TestGetResourceFound(t *testing.T) {
 	testResource.SetKind(testResourceKind)
 	testResource.SetAPIVersion(testResourceAPIVersion)
 	testResource.SetName(testResourceName)
-	testResource.SetNamespace(testNamespace)
+	testResource.SetNamespace(metav1.NamespaceDefault)
 	testResource.SetResourceVersion(testResourceVersion)
 
 	testResourceReference := &corev1.ObjectReference{
 		Kind:       testResourceKind,
 		APIVersion: testResourceAPIVersion,
 		Name:       testResourceName,
-		Namespace:  testNamespace,
+		Namespace:  metav1.NamespaceDefault,
 	}
 
 	fakeClient := fake.NewClientBuilder().WithObjects(testResource.DeepCopy()).Build()
-	got, err := Get(ctx, fakeClient, testResourceReference, testNamespace)
+	got, err := Get(ctx, fakeClient, testResourceReference, metav1.NamespaceDefault)
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(got).To(Equal(testResource))
 }
@@ -72,17 +71,15 @@ func TestGetResourceFound(t *testing.T) {
 func TestGetResourceNotFound(t *testing.T) {
 	g := NewWithT(t)
 
-	namespace := "test"
-
 	testResourceReference := &corev1.ObjectReference{
 		Kind:       "BlueTemplate",
 		APIVersion: "blue.io/v1",
 		Name:       "blueTemplate",
-		Namespace:  namespace,
+		Namespace:  metav1.NamespaceDefault,
 	}
 
 	fakeClient := fake.NewClientBuilder().Build()
-	_, err := Get(ctx, fakeClient, testResourceReference, namespace)
+	_, err := Get(ctx, fakeClient, testResourceReference, metav1.NamespaceDefault)
 	g.Expect(err).To(HaveOccurred())
 	g.Expect(apierrors.IsNotFound(errors.Cause(err))).To(BeTrue())
 }
@@ -96,14 +93,14 @@ func TestCloneTemplateResourceNotFound(t *testing.T) {
 		Kind:       "OrangeTemplate",
 		APIVersion: "orange.io/v1",
 		Name:       "orangeTemplate",
-		Namespace:  testNamespace,
+		Namespace:  metav1.NamespaceDefault,
 	}
 
 	fakeClient := fake.NewClientBuilder().Build()
 	_, err := CloneTemplate(ctx, &CloneTemplateInput{
 		Client:      fakeClient,
 		TemplateRef: testResourceReference,
-		Namespace:   testNamespace,
+		Namespace:   metav1.NamespaceDefault,
 		ClusterName: testClusterName,
 	})
 	g.Expect(err).To(HaveOccurred())
@@ -123,7 +120,7 @@ func TestCloneTemplateResourceFound(t *testing.T) {
 			"apiVersion": templateAPIVersion,
 			"metadata": map[string]interface{}{
 				"name":      templateName,
-				"namespace": testNamespace,
+				"namespace": metav1.NamespaceDefault,
 			},
 			"spec": map[string]interface{}{
 				"template": map[string]interface{}{
@@ -149,13 +146,13 @@ func TestCloneTemplateResourceFound(t *testing.T) {
 		Kind:       templateKind,
 		APIVersion: templateAPIVersion,
 		Name:       templateName,
-		Namespace:  testNamespace,
+		Namespace:  metav1.NamespaceDefault,
 	}
 
 	owner := metav1.OwnerReference{
 		Kind:       "Cluster",
 		APIVersion: clusterv1.GroupVersion.String(),
-		Name:       "test-cluster",
+		Name:       testClusterName,
 	}
 
 	expectedKind := "Purple"
@@ -175,7 +172,7 @@ func TestCloneTemplateResourceFound(t *testing.T) {
 	ref, err := CloneTemplate(ctx, &CloneTemplateInput{
 		Client:      fakeClient,
 		TemplateRef: templateRef.DeepCopy(),
-		Namespace:   testNamespace,
+		Namespace:   metav1.NamespaceDefault,
 		ClusterName: testClusterName,
 		OwnerRef:    owner.DeepCopy(),
 		Labels: map[string]string{
@@ -191,7 +188,7 @@ func TestCloneTemplateResourceFound(t *testing.T) {
 	g.Expect(ref).NotTo(BeNil())
 	g.Expect(ref.Kind).To(Equal(expectedKind))
 	g.Expect(ref.APIVersion).To(Equal(expectedAPIVersion))
-	g.Expect(ref.Namespace).To(Equal(testNamespace))
+	g.Expect(ref.Namespace).To(Equal(metav1.NamespaceDefault))
 	g.Expect(ref.Name).To(HavePrefix(templateRef.Name))
 
 	clone := &unstructured.Unstructured{}
@@ -234,7 +231,7 @@ func TestCloneTemplateResourceFoundNoOwner(t *testing.T) {
 			"apiVersion": templateAPIVersion,
 			"metadata": map[string]interface{}{
 				"name":      templateName,
-				"namespace": testNamespace,
+				"namespace": metav1.NamespaceDefault,
 			},
 			"spec": map[string]interface{}{
 				"template": map[string]interface{}{
@@ -250,7 +247,7 @@ func TestCloneTemplateResourceFoundNoOwner(t *testing.T) {
 		Kind:       templateKind,
 		APIVersion: templateAPIVersion,
 		Name:       templateName,
-		Namespace:  testNamespace,
+		Namespace:  metav1.NamespaceDefault,
 	}
 
 	expectedKind := "Yellow"
@@ -267,14 +264,14 @@ func TestCloneTemplateResourceFoundNoOwner(t *testing.T) {
 	ref, err := CloneTemplate(ctx, &CloneTemplateInput{
 		Client:      fakeClient,
 		TemplateRef: templateRef,
-		Namespace:   testNamespace,
+		Namespace:   metav1.NamespaceDefault,
 		ClusterName: testClusterName,
 	})
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(ref).NotTo(BeNil())
 	g.Expect(ref.Kind).To(Equal(expectedKind))
 	g.Expect(ref.APIVersion).To(Equal(expectedAPIVersion))
-	g.Expect(ref.Namespace).To(Equal(testNamespace))
+	g.Expect(ref.Namespace).To(Equal(metav1.NamespaceDefault))
 	g.Expect(ref.Name).To(HavePrefix(templateRef.Name))
 
 	clone := &unstructured.Unstructured{}
@@ -303,7 +300,7 @@ func TestCloneTemplateMissingSpecTemplate(t *testing.T) {
 			"apiVersion": templateAPIVersion,
 			"metadata": map[string]interface{}{
 				"name":      templateName,
-				"namespace": testNamespace,
+				"namespace": metav1.NamespaceDefault,
 			},
 			"spec": map[string]interface{}{},
 		},
@@ -313,7 +310,7 @@ func TestCloneTemplateMissingSpecTemplate(t *testing.T) {
 		Kind:       templateKind,
 		APIVersion: templateAPIVersion,
 		Name:       templateName,
-		Namespace:  testNamespace,
+		Namespace:  metav1.NamespaceDefault,
 	}
 
 	fakeClient := fake.NewClientBuilder().WithObjects(template.DeepCopy()).Build()
@@ -321,7 +318,7 @@ func TestCloneTemplateMissingSpecTemplate(t *testing.T) {
 	_, err := CloneTemplate(ctx, &CloneTemplateInput{
 		Client:      fakeClient,
 		TemplateRef: templateRef,
-		Namespace:   testNamespace,
+		Namespace:   metav1.NamespaceDefault,
 		ClusterName: testClusterName,
 	})
 	g.Expect(err).To(HaveOccurred())

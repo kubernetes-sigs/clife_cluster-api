@@ -28,17 +28,18 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/utils/pointer"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha4"
 	"sigs.k8s.io/cluster-api/controllers/external"
 	"sigs.k8s.io/cluster-api/controllers/remote"
 	"sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/cluster-api/util/patch"
-	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-	"sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 func TestWatches(t *testing.T) {
@@ -178,13 +179,17 @@ func TestWatches(t *testing.T) {
 
 func TestMachine_Reconcile(t *testing.T) {
 	g := NewWithT(t)
+
+	ns, err := env.CreateNamespace(ctx, "test-machine-reconcile")
+	g.Expect(err).ToNot(HaveOccurred())
+
 	infraMachine := &unstructured.Unstructured{
 		Object: map[string]interface{}{
 			"kind":       "InfrastructureMachine",
 			"apiVersion": "infrastructure.cluster.x-k8s.io/v1alpha4",
 			"metadata": map[string]interface{}{
 				"name":      "infra-config1",
-				"namespace": "default",
+				"namespace": ns.Name,
 			},
 			"spec": map[string]interface{}{
 				"providerID": "test://id-1",
@@ -198,7 +203,7 @@ func TestMachine_Reconcile(t *testing.T) {
 			"apiVersion": "bootstrap.cluster.x-k8s.io/v1alpha4",
 			"metadata": map[string]interface{}{
 				"name":      "bootstrap-config-machinereconcile",
-				"namespace": "default",
+				"namespace": ns.Name,
 			},
 			"spec":   map[string]interface{}{},
 			"status": map[string]interface{}{},
@@ -208,7 +213,7 @@ func TestMachine_Reconcile(t *testing.T) {
 	testCluster := &clusterv1.Cluster{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "machine-reconcile-",
-			Namespace:    "default",
+			Namespace:    ns.Name,
 		},
 	}
 
@@ -218,12 +223,12 @@ func TestMachine_Reconcile(t *testing.T) {
 
 	defer func(do ...client.Object) {
 		g.Expect(env.Cleanup(ctx, do...)).To(Succeed())
-	}(testCluster)
+	}(ns, testCluster, defaultBootstrap)
 
 	machine := &clusterv1.Machine{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "machine-created-",
-			Namespace:    "default",
+			Namespace:    ns.Name,
 			Finalizers:   []string{clusterv1.MachineFinalizer},
 		},
 		Spec: clusterv1.MachineSpec{
@@ -318,15 +323,15 @@ func TestMachineFinalizer(t *testing.T) {
 	bootstrapData := "some valid data"
 	clusterCorrectMeta := &clusterv1.Cluster{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "default",
 			Name:      "valid-cluster",
+			Namespace: metav1.NamespaceDefault,
 		},
 	}
 
 	machineValidCluster := &clusterv1.Machine{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "machine1",
-			Namespace: "default",
+			Namespace: metav1.NamespaceDefault,
 		},
 		Spec: clusterv1.MachineSpec{
 			Bootstrap: clusterv1.Bootstrap{
@@ -339,7 +344,7 @@ func TestMachineFinalizer(t *testing.T) {
 	machineWithFinalizer := &clusterv1.Machine{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       "machine2",
-			Namespace:  "default",
+			Namespace:  metav1.NamespaceDefault,
 			Finalizers: []string{"some-other-finalizer"},
 		},
 		Spec: clusterv1.MachineSpec{
@@ -405,13 +410,13 @@ func TestMachineOwnerReference(t *testing.T) {
 	bootstrapData := "some valid data"
 	testCluster := &clusterv1.Cluster{
 		TypeMeta:   metav1.TypeMeta{Kind: "Cluster", APIVersion: clusterv1.GroupVersion.String()},
-		ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "test-cluster"},
+		ObjectMeta: metav1.ObjectMeta{Namespace: metav1.NamespaceDefault, Name: "test-cluster"},
 	}
 
 	machineInvalidCluster := &clusterv1.Machine{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "machine1",
-			Namespace: "default",
+			Namespace: metav1.NamespaceDefault,
 		},
 		Spec: clusterv1.MachineSpec{
 			ClusterName: "invalid",
@@ -421,7 +426,7 @@ func TestMachineOwnerReference(t *testing.T) {
 	machineValidCluster := &clusterv1.Machine{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "machine2",
-			Namespace: "default",
+			Namespace: metav1.NamespaceDefault,
 		},
 		Spec: clusterv1.MachineSpec{
 			Bootstrap: clusterv1.Bootstrap{
@@ -434,7 +439,7 @@ func TestMachineOwnerReference(t *testing.T) {
 	machineValidMachine := &clusterv1.Machine{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "machine3",
-			Namespace: "default",
+			Namespace: metav1.NamespaceDefault,
 			Labels: map[string]string{
 				clusterv1.ClusterLabelName: "valid-cluster",
 			},
@@ -458,7 +463,7 @@ func TestMachineOwnerReference(t *testing.T) {
 	machineValidControlled := &clusterv1.Machine{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "machine4",
-			Namespace: "default",
+			Namespace: metav1.NamespaceDefault,
 			Labels: map[string]string{
 				clusterv1.ClusterLabelName:             "valid-cluster",
 				clusterv1.MachineControlPlaneLabelName: "",
@@ -576,7 +581,7 @@ func TestReconcileRequest(t *testing.T) {
 			"apiVersion": "infrastructure.cluster.x-k8s.io/v1alpha4",
 			"metadata": map[string]interface{}{
 				"name":      "infra-config1",
-				"namespace": "default",
+				"namespace": metav1.NamespaceDefault,
 			},
 			"spec": map[string]interface{}{
 				"providerID": "test://id-1",
@@ -598,14 +603,14 @@ func TestReconcileRequest(t *testing.T) {
 	testCluster := clusterv1.Cluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-cluster",
-			Namespace: "default",
+			Namespace: metav1.NamespaceDefault,
 		},
 	}
 
 	node := &corev1.Node{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test",
-			Namespace: "default",
+			Namespace: metav1.NamespaceDefault,
 		},
 		Spec: corev1.NodeSpec{ProviderID: "test://id-1"},
 	}
@@ -622,7 +627,7 @@ func TestReconcileRequest(t *testing.T) {
 			machine: clusterv1.Machine{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       "created",
-					Namespace:  "default",
+					Namespace:  metav1.NamespaceDefault,
 					Finalizers: []string{clusterv1.MachineFinalizer},
 				},
 				Spec: clusterv1.MachineSpec{
@@ -650,7 +655,7 @@ func TestReconcileRequest(t *testing.T) {
 			machine: clusterv1.Machine{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       "updated",
-					Namespace:  "default",
+					Namespace:  metav1.NamespaceDefault,
 					Finalizers: []string{clusterv1.MachineFinalizer},
 				},
 				Spec: clusterv1.MachineSpec{
@@ -678,7 +683,7 @@ func TestReconcileRequest(t *testing.T) {
 			machine: clusterv1.Machine{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "deleted",
-					Namespace: "default",
+					Namespace: metav1.NamespaceDefault,
 					Labels: map[string]string{
 						clusterv1.MachineControlPlaneLabelName: "",
 					},
@@ -739,7 +744,7 @@ func TestMachineConditions(t *testing.T) {
 				"apiVersion": "infrastructure.cluster.x-k8s.io/v1alpha4",
 				"metadata": map[string]interface{}{
 					"name":      "infra-config1",
-					"namespace": "default",
+					"namespace": metav1.NamespaceDefault,
 				},
 				"spec": map[string]interface{}{
 					"providerID": "test://id-1",
@@ -770,7 +775,7 @@ func TestMachineConditions(t *testing.T) {
 				"apiVersion": "bootstrap.cluster.x-k8s.io/v1alpha4",
 				"metadata": map[string]interface{}{
 					"name":      "bootstrap-config1",
-					"namespace": "default",
+					"namespace": metav1.NamespaceDefault,
 				},
 				"status": status,
 			},
@@ -780,14 +785,14 @@ func TestMachineConditions(t *testing.T) {
 	testCluster := clusterv1.Cluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-cluster",
-			Namespace: "default",
+			Namespace: metav1.NamespaceDefault,
 		},
 	}
 
 	machine := clusterv1.Machine{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "blah",
-			Namespace: "default",
+			Namespace: metav1.NamespaceDefault,
 			Labels: map[string]string{
 				clusterv1.MachineControlPlaneLabelName: "",
 			},
@@ -977,7 +982,7 @@ func TestMachineConditions(t *testing.T) {
 
 func TestReconcileDeleteExternal(t *testing.T) {
 	testCluster := &clusterv1.Cluster{
-		ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "test-cluster"},
+		ObjectMeta: metav1.ObjectMeta{Namespace: metav1.NamespaceDefault, Name: "test-cluster"},
 	}
 
 	bootstrapConfig := &unstructured.Unstructured{
@@ -986,7 +991,7 @@ func TestReconcileDeleteExternal(t *testing.T) {
 			"apiVersion": "bootstrap.cluster.x-k8s.io/v1alpha4",
 			"metadata": map[string]interface{}{
 				"name":      "delete-bootstrap",
-				"namespace": "default",
+				"namespace": metav1.NamespaceDefault,
 			},
 		},
 	}
@@ -994,7 +999,7 @@ func TestReconcileDeleteExternal(t *testing.T) {
 	machine := &clusterv1.Machine{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "delete",
-			Namespace: "default",
+			Namespace: metav1.NamespaceDefault,
 		},
 		Spec: clusterv1.MachineSpec{
 			ClusterName: "test-cluster",
@@ -1023,7 +1028,7 @@ func TestReconcileDeleteExternal(t *testing.T) {
 					"kind":       "BootstrapConfig",
 					"metadata": map[string]interface{}{
 						"name":            "delete-bootstrap",
-						"namespace":       "default",
+						"namespace":       metav1.NamespaceDefault,
 						"resourceVersion": "999",
 					},
 				},
@@ -1069,13 +1074,13 @@ func TestRemoveMachineFinalizerAfterDeleteReconcile(t *testing.T) {
 	dt := metav1.Now()
 
 	testCluster := &clusterv1.Cluster{
-		ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "test-cluster"},
+		ObjectMeta: metav1.ObjectMeta{Namespace: metav1.NamespaceDefault, Name: "test-cluster"},
 	}
 
 	m := &clusterv1.Machine{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:              "delete123",
-			Namespace:         "default",
+			Namespace:         metav1.NamespaceDefault,
 			Finalizers:        []string{clusterv1.MachineFinalizer, "test"},
 			DeletionTimestamp: &dt,
 		},
@@ -1104,7 +1109,7 @@ func TestRemoveMachineFinalizerAfterDeleteReconcile(t *testing.T) {
 func TestIsNodeDrainedAllowed(t *testing.T) {
 	testCluster := &clusterv1.Cluster{
 		TypeMeta:   metav1.TypeMeta{Kind: "Cluster", APIVersion: clusterv1.GroupVersion.String()},
-		ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "test-cluster"},
+		ObjectMeta: metav1.ObjectMeta{Namespace: metav1.NamespaceDefault, Name: "test-cluster"},
 	}
 
 	tests := []struct {
@@ -1117,7 +1122,7 @@ func TestIsNodeDrainedAllowed(t *testing.T) {
 			machine: &clusterv1.Machine{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:        "test-machine",
-					Namespace:   "default",
+					Namespace:   metav1.NamespaceDefault,
 					Finalizers:  []string{clusterv1.MachineFinalizer},
 					Annotations: map[string]string{clusterv1.ExcludeNodeDrainingAnnotation: "existed!!"},
 				},
@@ -1135,7 +1140,7 @@ func TestIsNodeDrainedAllowed(t *testing.T) {
 			machine: &clusterv1.Machine{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       "test-machine",
-					Namespace:  "default",
+					Namespace:  metav1.NamespaceDefault,
 					Finalizers: []string{clusterv1.MachineFinalizer},
 				},
 				Spec: clusterv1.MachineSpec{
@@ -1162,7 +1167,7 @@ func TestIsNodeDrainedAllowed(t *testing.T) {
 			machine: &clusterv1.Machine{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       "test-machine",
-					Namespace:  "default",
+					Namespace:  metav1.NamespaceDefault,
 					Finalizers: []string{clusterv1.MachineFinalizer},
 				},
 				Spec: clusterv1.MachineSpec{
@@ -1188,7 +1193,7 @@ func TestIsNodeDrainedAllowed(t *testing.T) {
 			machine: &clusterv1.Machine{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       "test-machine",
-					Namespace:  "default",
+					Namespace:  metav1.NamespaceDefault,
 					Finalizers: []string{clusterv1.MachineFinalizer},
 				},
 				Spec: clusterv1.MachineSpec{
@@ -1240,13 +1245,13 @@ func TestIsDeleteNodeAllowed(t *testing.T) {
 			cluster: &clusterv1.Cluster{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-cluster",
-					Namespace: "default",
+					Namespace: metav1.NamespaceDefault,
 				},
 			},
 			machine: &clusterv1.Machine{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "created",
-					Namespace: "default",
+					Namespace: metav1.NamespaceDefault,
 					Labels: map[string]string{
 						clusterv1.ClusterLabelName: "test-cluster",
 					},
@@ -1266,13 +1271,13 @@ func TestIsDeleteNodeAllowed(t *testing.T) {
 			cluster: &clusterv1.Cluster{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-cluster",
-					Namespace: "default",
+					Namespace: metav1.NamespaceDefault,
 				},
 			},
 			machine: &clusterv1.Machine{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "created",
-					Namespace: "default",
+					Namespace: metav1.NamespaceDefault,
 					Labels: map[string]string{
 						clusterv1.ClusterLabelName: "test-cluster",
 					},
@@ -1296,13 +1301,13 @@ func TestIsDeleteNodeAllowed(t *testing.T) {
 			cluster: &clusterv1.Cluster{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-cluster",
-					Namespace: "default",
+					Namespace: metav1.NamespaceDefault,
 				},
 			},
 			machine: &clusterv1.Machine{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "created",
-					Namespace: "default",
+					Namespace: metav1.NamespaceDefault,
 					Labels: map[string]string{
 						clusterv1.ClusterLabelName:             "test-cluster",
 						clusterv1.MachineControlPlaneLabelName: "",
@@ -1328,13 +1333,13 @@ func TestIsDeleteNodeAllowed(t *testing.T) {
 			cluster: &clusterv1.Cluster{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-cluster",
-					Namespace: "default",
+					Namespace: metav1.NamespaceDefault,
 				},
 			},
 			machine: &clusterv1.Machine{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "created",
-					Namespace: "default",
+					Namespace: metav1.NamespaceDefault,
 					Labels: map[string]string{
 						clusterv1.ClusterLabelName: "test-cluster",
 					},
@@ -1358,7 +1363,7 @@ func TestIsDeleteNodeAllowed(t *testing.T) {
 			cluster: &clusterv1.Cluster{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:              "test-cluster",
-					Namespace:         "default",
+					Namespace:         metav1.NamespaceDefault,
 					DeletionTimestamp: &deletionts,
 				},
 			},
@@ -1370,7 +1375,7 @@ func TestIsDeleteNodeAllowed(t *testing.T) {
 			cluster: &clusterv1.Cluster{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-cluster",
-					Namespace: "default",
+					Namespace: metav1.NamespaceDefault,
 				},
 				Spec: clusterv1.ClusterSpec{
 					ControlPlaneRef: &corev1.ObjectReference{
@@ -1384,7 +1389,7 @@ func TestIsDeleteNodeAllowed(t *testing.T) {
 			machine: &clusterv1.Machine{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "created",
-					Namespace: "default",
+					Namespace: metav1.NamespaceDefault,
 					Labels: map[string]string{
 						clusterv1.ClusterLabelName: "test-cluster",
 					},
@@ -1408,7 +1413,7 @@ func TestIsDeleteNodeAllowed(t *testing.T) {
 			cluster: &clusterv1.Cluster{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-cluster",
-					Namespace: "default",
+					Namespace: metav1.NamespaceDefault,
 				},
 				Spec: clusterv1.ClusterSpec{
 					ControlPlaneRef: &corev1.ObjectReference{
@@ -1422,7 +1427,7 @@ func TestIsDeleteNodeAllowed(t *testing.T) {
 			machine: &clusterv1.Machine{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "created",
-					Namespace: "default",
+					Namespace: metav1.NamespaceDefault,
 					Labels: map[string]string{
 						clusterv1.ClusterLabelName: "test-cluster",
 					},
@@ -1446,7 +1451,7 @@ func TestIsDeleteNodeAllowed(t *testing.T) {
 			cluster: &clusterv1.Cluster{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-cluster",
-					Namespace: "default",
+					Namespace: metav1.NamespaceDefault,
 				},
 				Spec: clusterv1.ClusterSpec{
 					ControlPlaneRef: &corev1.ObjectReference{
@@ -1460,7 +1465,7 @@ func TestIsDeleteNodeAllowed(t *testing.T) {
 			machine: &clusterv1.Machine{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "created",
-					Namespace: "default",
+					Namespace: metav1.NamespaceDefault,
 					Labels: map[string]string{
 						clusterv1.ClusterLabelName: "test-cluster",
 					},
@@ -1522,7 +1527,7 @@ func TestIsDeleteNodeAllowed(t *testing.T) {
 			m1 := &clusterv1.Machine{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "cp1",
-					Namespace: "default",
+					Namespace: metav1.NamespaceDefault,
 					Labels: map[string]string{
 						clusterv1.ClusterLabelName: "test-cluster",
 					},
@@ -1542,7 +1547,7 @@ func TestIsDeleteNodeAllowed(t *testing.T) {
 			m2 := &clusterv1.Machine{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "cp2",
-					Namespace: "default",
+					Namespace: metav1.NamespaceDefault,
 					Labels: map[string]string{
 						clusterv1.ClusterLabelName: "test-cluster",
 					},

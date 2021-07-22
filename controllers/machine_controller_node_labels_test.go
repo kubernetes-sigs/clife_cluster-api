@@ -110,7 +110,7 @@ func TestReconcileInterruptibleNodeLabel(t *testing.T) {
 
 	defer func(do ...client.Object) {
 		g.Expect(env.Cleanup(ctx, do...)).To(Succeed())
-	}(cluster, node, infraMachine, machine)
+	}(cluster, ns, node, infraMachine, machine)
 
 	r := &MachineReconciler{
 		Client:   env.Client,

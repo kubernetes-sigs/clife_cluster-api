@@ -36,27 +36,33 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/pointer"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha4"
 	"sigs.k8s.io/cluster-api/controllers/remote"
 	capierrors "sigs.k8s.io/cluster-api/errors"
 	"sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/cluster-api/util/patch"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-	"sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-)
-
-const (
-	defaultNamespaceName = "default"
-	testClusterName      = "test-cluster"
 )
 
 func TestMachineHealthCheck_Reconcile(t *testing.T) {
+	ns, err := env.CreateNamespace(ctx, "test-mhc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := env.Delete(ctx, ns); err != nil {
+			t.Fatal(err)
+		}
+	}()
+
 	t.Run("it should ensure the correct cluster-name label when no existing labels exist", func(t *testing.T) {
 		g := NewWithT(t)
-		cluster := createNamespaceAndCluster(g)
+		cluster := createCluster(g, ns.Name)
 
 		mhc := newMachineHealthCheck(cluster.Namespace, cluster.Name)
 		mhc.Labels = map[string]string{}
@@ -77,7 +83,7 @@ func TestMachineHealthCheck_Reconcile(t *testing.T) {
 
 	t.Run("it should ensure the correct cluster-name label when the label has the wrong value", func(t *testing.T) {
 		g := NewWithT(t)
-		cluster := createNamespaceAndCluster(g)
+		cluster := createCluster(g, ns.Name)
 
 		mhc := newMachineHealthCheck(cluster.Namespace, cluster.Name)
 		mhc.Labels = map[string]string{
@@ -100,7 +106,7 @@ func TestMachineHealthCheck_Reconcile(t *testing.T) {
 
 	t.Run("it should ensure the correct cluster-name label when other labels are present", func(t *testing.T) {
 		g := NewWithT(t)
-		cluster := createNamespaceAndCluster(g)
+		cluster := createCluster(g, ns.Name)
 
 		mhc := newMachineHealthCheck(cluster.Namespace, cluster.Name)
 		mhc.Labels = map[string]string{
@@ -127,7 +133,7 @@ func TestMachineHealthCheck_Reconcile(t *testing.T) {
 
 	t.Run("it should ensure an owner reference is present when no existing ones exist", func(t *testing.T) {
 		g := NewWithT(t)
-		cluster := createNamespaceAndCluster(g)
+		cluster := createCluster(g, ns.Name)
 
 		mhc := newMachineHealthCheck(cluster.Namespace, cluster.Name)
 		mhc.OwnerReferences = []metav1.OwnerReference{}
@@ -152,7 +158,7 @@ func TestMachineHealthCheck_Reconcile(t *testing.T) {
 
 	t.Run("it should ensure an owner reference is present when modifying existing ones", func(t *testing.T) {
 		g := NewWithT(t)
-		cluster := createNamespaceAndCluster(g)
+		cluster := createCluster(g, ns.Name)
 
 		mhc := newMachineHealthCheck(cluster.Namespace, cluster.Name)
 		mhc.OwnerReferences = []metav1.OwnerReference{
@@ -180,7 +186,7 @@ func TestMachineHealthCheck_Reconcile(t *testing.T) {
 
 	t.Run("it ignores Machines not matching the label selector", func(t *testing.T) {
 		g := NewWithT(t)
-		cluster := createNamespaceAndCluster(g)
+		cluster := createCluster(g, ns.Name)
 
 		mhc := newMachineHealthCheck(cluster.Namespace, cluster.Name)
 
@@ -236,7 +242,7 @@ func TestMachineHealthCheck_Reconcile(t *testing.T) {
 
 	t.Run("it doesn't mark anything unhealthy when cluster infrastructure is not ready", func(t *testing.T) {
 		g := NewWithT(t)
-		cluster := createNamespaceAndCluster(g)
+		cluster := createCluster(g, ns.Name)
 
 		patchHelper, err := patch.NewHelper(cluster, env.Client)
 		g.Expect(err).To(BeNil())
@@ -289,7 +295,7 @@ func TestMachineHealthCheck_Reconcile(t *testing.T) {
 
 	t.Run("it doesn't mark anything unhealthy when all Machines are healthy", func(t *testing.T) {
 		g := NewWithT(t)
-		cluster := createNamespaceAndCluster(g)
+		cluster := createCluster(g, ns.Name)
 
 		mhc := newMachineHealthCheck(cluster.Namespace, cluster.Name)
 
@@ -337,7 +343,7 @@ func TestMachineHealthCheck_Reconcile(t *testing.T) {
 
 	t.Run("it marks unhealthy machines for remediation when there is one unhealthy Machine", func(t *testing.T) {
 		g := NewWithT(t)
-		cluster := createNamespaceAndCluster(g)
+		cluster := createCluster(g, ns.Name)
 
 		mhc := newMachineHealthCheck(cluster.Namespace, cluster.Name)
 
@@ -394,7 +400,7 @@ func TestMachineHealthCheck_Reconcile(t *testing.T) {
 
 	t.Run("it marks unhealthy machines for remediation when there a Machine has a failure reason", func(t *testing.T) {
 		g := NewWithT(t)
-		cluster := createNamespaceAndCluster(g)
+		cluster := createCluster(g, ns.Name)
 
 		mhc := newMachineHealthCheck(cluster.Namespace, cluster.Name)
 
@@ -452,7 +458,7 @@ func TestMachineHealthCheck_Reconcile(t *testing.T) {
 
 	t.Run("it marks unhealthy machines for remediation when there a Machine has a failure message", func(t *testing.T) {
 		g := NewWithT(t)
-		cluster := createNamespaceAndCluster(g)
+		cluster := createCluster(g, ns.Name)
 
 		mhc := newMachineHealthCheck(cluster.Namespace, cluster.Name)
 
@@ -510,7 +516,7 @@ func TestMachineHealthCheck_Reconcile(t *testing.T) {
 
 	t.Run("it marks unhealthy machines for remediation when the unhealthy Machines exceed MaxUnhealthy", func(t *testing.T) {
 		g := NewWithT(t)
-		cluster := createNamespaceAndCluster(g)
+		cluster := createCluster(g, ns.Name)
 
 		mhc := newMachineHealthCheck(cluster.Namespace, cluster.Name)
 		maxUnhealthy := intstr.Parse("40%")
@@ -608,7 +614,7 @@ func TestMachineHealthCheck_Reconcile(t *testing.T) {
 
 	t.Run("it marks unhealthy machines for remediation when number of unhealthy machines is within unhealthyRange", func(t *testing.T) {
 		g := NewWithT(t)
-		cluster := createNamespaceAndCluster(g)
+		cluster := createCluster(g, ns.Name)
 
 		mhc := newMachineHealthCheck(cluster.Namespace, cluster.Name)
 		unhealthyRange := "[1-3]"
@@ -667,7 +673,7 @@ func TestMachineHealthCheck_Reconcile(t *testing.T) {
 
 	t.Run("it marks unhealthy machines for remediation when the unhealthy Machines is not within UnhealthyRange", func(t *testing.T) {
 		g := NewWithT(t)
-		cluster := createNamespaceAndCluster(g)
+		cluster := createCluster(g, ns.Name)
 
 		mhc := newMachineHealthCheck(cluster.Namespace, cluster.Name)
 		unhealthyRange := "[3-5]"
@@ -765,7 +771,7 @@ func TestMachineHealthCheck_Reconcile(t *testing.T) {
 
 	t.Run("when a Machine has no Node ref for less than the NodeStartupTimeout", func(t *testing.T) {
 		g := NewWithT(t)
-		cluster := createNamespaceAndCluster(g)
+		cluster := createCluster(g, ns.Name)
 
 		// After the cluster exists, we have to set the infrastructure ready condition; otherwise, MachineHealthChecks
 		// will never fail when nodeStartupTimeout is exceeded.
@@ -869,7 +875,7 @@ func TestMachineHealthCheck_Reconcile(t *testing.T) {
 		// FIXME: Resolve flaky/failing test
 		t.Skip("skipping until made stable")
 		g := NewWithT(t)
-		cluster := createNamespaceAndCluster(g)
+		cluster := createCluster(g, ns.Name)
 
 		mhc := newMachineHealthCheck(cluster.Namespace, cluster.Name)
 		mhc.Spec.NodeStartupTimeout = &metav1.Duration{Duration: time.Second}
@@ -969,7 +975,7 @@ func TestMachineHealthCheck_Reconcile(t *testing.T) {
 		// FIXME: Resolve flaky/failing test
 		t.Skip("skipping until made stable")
 		g := NewWithT(t)
-		cluster := createNamespaceAndCluster(g)
+		cluster := createCluster(g, ns.Name)
 
 		mhc := newMachineHealthCheck(cluster.Namespace, cluster.Name)
 
@@ -1062,7 +1068,7 @@ func TestMachineHealthCheck_Reconcile(t *testing.T) {
 
 	t.Run("should react when a Node transitions to unhealthy", func(t *testing.T) {
 		g := NewWithT(t)
-		cluster := createNamespaceAndCluster(g)
+		cluster := createCluster(g, ns.Name)
 
 		mhc := newMachineHealthCheck(cluster.Namespace, cluster.Name)
 
@@ -1178,7 +1184,7 @@ func TestMachineHealthCheck_Reconcile(t *testing.T) {
 
 	t.Run("when in a MachineSet, unhealthy machines should be deleted", func(t *testing.T) {
 		g := NewWithT(t)
-		cluster := createNamespaceAndCluster(g)
+		cluster := createCluster(g, ns.Name)
 
 		// Create 1 control plane machine so MHC can proceed
 		_, _, cleanup := createMachinesWithNodes(g, cluster,
@@ -1328,7 +1334,7 @@ func TestMachineHealthCheck_Reconcile(t *testing.T) {
 		// FIXME: Resolve flaky/failing test
 		t.Skip("skipping until made stable")
 		g := NewWithT(t)
-		cluster := createNamespaceAndCluster(g)
+		cluster := createCluster(g, ns.Name)
 
 		mhc := newMachineHealthCheck(cluster.Namespace, cluster.Name)
 
@@ -1451,7 +1457,7 @@ func TestMachineHealthCheck_Reconcile(t *testing.T) {
 
 	t.Run("When remediationTemplate is set and node transitions to unhealthy, new Remediation Request should be created", func(t *testing.T) {
 		g := NewWithT(t)
-		cluster := createNamespaceAndCluster(g)
+		cluster := createCluster(g, ns.Name)
 
 		// Create remediation template resource.
 		infraRemediationResource := map[string]interface{}{
@@ -1599,7 +1605,7 @@ func TestMachineHealthCheck_Reconcile(t *testing.T) {
 
 	t.Run("When remediationTemplate is set and node transitions back to healthy, new Remediation Request should be deleted", func(t *testing.T) {
 		g := NewWithT(t)
-		cluster := createNamespaceAndCluster(g)
+		cluster := createCluster(g, ns.Name)
 
 		// Create remediation template resource.
 		infraRemediationResource := map[string]interface{}{
@@ -1802,7 +1808,7 @@ func TestClusterToMachineHealthCheck(t *testing.T) {
 		Client: fakeClient,
 	}
 
-	namespace := defaultNamespaceName
+	namespace := metav1.NamespaceDefault
 	clusterName := testClusterName
 	labels := make(map[string]string)
 
@@ -1881,7 +1887,7 @@ func TestMachineToMachineHealthCheck(t *testing.T) {
 		Client: fakeClient,
 	}
 
-	namespace := defaultNamespaceName
+	namespace := metav1.NamespaceDefault
 	clusterName := testClusterName
 	nodeName := "node1"
 	labels := map[string]string{"cluster": "foo", "nodepool": "bar"}
@@ -1956,7 +1962,7 @@ func TestNodeToMachineHealthCheck(t *testing.T) {
 		Client: fakeClient,
 	}
 
-	namespace := defaultNamespaceName
+	namespace := metav1.NamespaceDefault
 	clusterName := testClusterName
 	nodeName := "node1"
 	labels := map[string]string{"cluster": "foo", "nodepool": "bar"}
@@ -2245,17 +2251,12 @@ func ownerReferenceForCluster(ctx context.Context, g *WithT, c *clusterv1.Cluste
 	}
 }
 
-// createNamespaceAndCluster creates a namespace in the test environment. It
-// then creates a Cluster and KubeconfigSecret for that cluster in said
-// namespace.
-func createNamespaceAndCluster(g *WithT) *clusterv1.Cluster {
-	ns, err := env.CreateNamespace(ctx, "test-mhc")
-	g.Expect(err).ToNot(HaveOccurred())
-
+// createCluster creates a Cluster and KubeconfigSecret for that cluster in said namespace.
+func createCluster(g *WithT, namespaceName string) *clusterv1.Cluster {
 	cluster := &clusterv1.Cluster{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "test-cluster-",
-			Namespace:    ns.Name,
+			Namespace:    namespaceName,
 		},
 	}
 
@@ -2566,7 +2567,7 @@ func newMachineHealthCheck(namespace, clusterName string) *clusterv1.MachineHeal
 func TestPatchTargets(t *testing.T) {
 	g := NewWithT(t)
 
-	namespace := defaultNamespaceName
+	namespace := metav1.NamespaceDefault
 	clusterName := testClusterName
 	defaultCluster := &clusterv1.Cluster{
 		ObjectMeta: metav1.ObjectMeta{
