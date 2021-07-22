@@ -36,7 +36,7 @@ func TestGetConfigOwner(t *testing.T) {
 		myMachine := &clusterv1.Machine{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "my-machine",
-				Namespace: "my-ns",
+				Namespace: metav1.NamespaceDefault,
 				Labels: map[string]string{
 					clusterv1.MachineControlPlaneLabelName: "",
 				},
@@ -63,7 +63,7 @@ func TestGetConfigOwner(t *testing.T) {
 						Name:       "my-machine",
 					},
 				},
-				Namespace: "my-ns",
+				Namespace: metav1.NamespaceDefault,
 				Name:      "my-resource-owned-by-machine",
 			},
 		}
@@ -85,7 +85,7 @@ func TestGetConfigOwner(t *testing.T) {
 		myPool := &expv1.MachinePool{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "my-machine-pool",
-				Namespace: "my-ns",
+				Namespace: metav1.NamespaceDefault,
 				Labels: map[string]string{
 					clusterv1.MachineControlPlaneLabelName: "",
 				},
@@ -113,7 +113,7 @@ func TestGetConfigOwner(t *testing.T) {
 						Name:       "my-machine-pool",
 					},
 				},
-				Namespace: "my-ns",
+				Namespace: metav1.NamespaceDefault,
 				Name:      "my-resource-owned-by-machine-pool",
 			},
 		}
@@ -140,7 +140,7 @@ func TestGetConfigOwner(t *testing.T) {
 						Name:       "my-machine",
 					},
 				},
-				Namespace: "my-ns",
+				Namespace: metav1.NamespaceDefault,
 				Name:      "my-resource-owned-by-machine",
 			},
 		}
@@ -154,7 +154,7 @@ func TestGetConfigOwner(t *testing.T) {
 		obj := &bootstrapv1.KubeadmConfig{
 			ObjectMeta: metav1.ObjectMeta{
 				OwnerReferences: []metav1.OwnerReference{},
-				Namespace:       "my-ns",
+				Namespace:       metav1.NamespaceDefault,
 				Name:            "my-resource-owned-by-machine",
 			},
 		}

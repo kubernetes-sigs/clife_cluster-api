@@ -33,7 +33,7 @@ func TestClusterValidate(t *testing.T) {
 			in: &KubeadmConfig{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "baz",
-					Namespace: "default",
+					Namespace: metav1.NamespaceDefault,
 				},
 				Spec: KubeadmConfigSpec{
 					Files: []File{
@@ -48,7 +48,7 @@ func TestClusterValidate(t *testing.T) {
 			in: &KubeadmConfig{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "baz",
-					Namespace: "default",
+					Namespace: metav1.NamespaceDefault,
 				},
 				Spec: KubeadmConfigSpec{
 					Files: []File{
@@ -68,7 +68,7 @@ func TestClusterValidate(t *testing.T) {
 			in: &KubeadmConfig{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "baz",
-					Namespace: "default",
+					Namespace: metav1.NamespaceDefault,
 				},
 				Spec: KubeadmConfigSpec{
 					Files: []File{
@@ -85,7 +85,7 @@ func TestClusterValidate(t *testing.T) {
 			in: &KubeadmConfig{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "baz",
-					Namespace: "default",
+					Namespace: metav1.NamespaceDefault,
 				},
 				Spec: KubeadmConfigSpec{
 					Files: []File{
@@ -106,7 +106,7 @@ func TestClusterValidate(t *testing.T) {
 			in: &KubeadmConfig{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "baz",
-					Namespace: "default",
+					Namespace: metav1.NamespaceDefault,
 				},
 				Spec: KubeadmConfigSpec{
 					Files: []File{
@@ -127,7 +127,7 @@ func TestClusterValidate(t *testing.T) {
 			in: &KubeadmConfig{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "baz",
-					Namespace: "default",
+					Namespace: metav1.NamespaceDefault,
 				},
 				Spec: KubeadmConfigSpec{
 					Files: []File{

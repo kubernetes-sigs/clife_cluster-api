@@ -30,6 +30,11 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	bootstrapapi "k8s.io/cluster-bootstrap/token/api"
 	"k8s.io/utils/pointer"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha4"
 	bootstrapv1 "sigs.k8s.io/cluster-api/bootstrap/kubeadm/api/v1alpha4"
 	fakeremote "sigs.k8s.io/cluster-api/controllers/remote/fake"
@@ -39,25 +44,21 @@ import (
 	"sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/cluster-api/util/patch"
 	"sigs.k8s.io/cluster-api/util/secret"
-	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 // MachineToBootstrapMapFunc return kubeadm bootstrap configref name when configref exists.
 func TestKubeadmConfigReconciler_MachineToBootstrapMapFuncReturn(t *testing.T) {
 	g := NewWithT(t)
 
-	cluster := newCluster("my-cluster")
+	cluster := newCluster("my-cluster", metav1.NamespaceDefault)
 	objs := []client.Object{cluster}
 	machineObjs := []client.Object{}
 	var expectedConfigName string
 	for i := 0; i < 3; i++ {
-		m := newMachine(cluster, fmt.Sprintf("my-machine-%d", i))
+		m := newMachine(cluster, fmt.Sprintf("my-machine-%d", i), cluster.Namespace)
 		configName := fmt.Sprintf("my-config-%d", i)
 		if i == 1 {
-			c := newKubeadmConfig(m, configName)
+			c := newKubeadmConfig(m, configName, metav1.NamespaceDefault)
 			objs = append(objs, m, c)
 			expectedConfigName = configName
 		} else {
@@ -84,7 +85,7 @@ func TestKubeadmConfigReconciler_MachineToBootstrapMapFuncReturn(t *testing.T) {
 func TestKubeadmConfigReconciler_Reconcile_ReturnEarlyIfKubeadmConfigIsReady(t *testing.T) {
 	g := NewWithT(t)
 
-	config := newKubeadmConfig(nil, "cfg")
+	config := newKubeadmConfig(nil, "cfg", metav1.NamespaceDefault)
 	config.Status.Ready = true
 
 	objects := []client.Object{
@@ -98,8 +99,8 @@ func TestKubeadmConfigReconciler_Reconcile_ReturnEarlyIfKubeadmConfigIsReady(t *
 
 	request := ctrl.Request{
 		NamespacedName: client.ObjectKey{
-			Name:      "default",
-			Namespace: "cfg",
+			Namespace: metav1.NamespaceDefault,
+			Name:      "cfg",
 		},
 	}
 	result, err := k.Reconcile(ctx, request)
@@ -112,8 +113,8 @@ func TestKubeadmConfigReconciler_Reconcile_ReturnEarlyIfKubeadmConfigIsReady(t *
 func TestKubeadmConfigReconciler_Reconcile_ReturnNilIfReferencedMachineIsNotFound(t *testing.T) {
 	g := NewWithT(t)
 
-	machine := newMachine(nil, "machine")
-	config := newKubeadmConfig(machine, "cfg")
+	machine := newMachine(nil, "machine", metav1.NamespaceDefault)
+	config := newKubeadmConfig(machine, "cfg", metav1.NamespaceDefault)
 
 	objects := []client.Object{
 		// intentionally omitting machine
@@ -127,7 +128,7 @@ func TestKubeadmConfigReconciler_Reconcile_ReturnNilIfReferencedMachineIsNotFoun
 
 	request := ctrl.Request{
 		NamespacedName: client.ObjectKey{
-			Namespace: "default",
+			Namespace: metav1.NamespaceDefault,
 			Name:      "cfg",
 		},
 	}
@@ -139,10 +140,10 @@ func TestKubeadmConfigReconciler_Reconcile_ReturnNilIfReferencedMachineIsNotFoun
 func TestKubeadmConfigReconciler_Reconcile_ReturnEarlyIfMachineHasDataSecretName(t *testing.T) {
 	g := NewWithT(t)
 
-	machine := newMachine(nil, "machine")
+	machine := newMachine(nil, "machine", metav1.NamespaceDefault)
 	machine.Spec.Bootstrap.DataSecretName = pointer.StringPtr("something")
 
-	config := newKubeadmConfig(machine, "cfg")
+	config := newKubeadmConfig(machine, "cfg", metav1.NamespaceDefault)
 	objects := []client.Object{
 		machine,
 		config,
@@ -155,7 +156,7 @@ func TestKubeadmConfigReconciler_Reconcile_ReturnEarlyIfMachineHasDataSecretName
 
 	request := ctrl.Request{
 		NamespacedName: client.ObjectKey{
-			Namespace: "default",
+			Namespace: metav1.NamespaceDefault,
 			Name:      "cfg",
 		},
 	}
@@ -168,9 +169,9 @@ func TestKubeadmConfigReconciler_Reconcile_ReturnEarlyIfMachineHasDataSecretName
 func TestKubeadmConfigReconciler_ReturnEarlyIfClusterInfraNotReady(t *testing.T) {
 	g := NewWithT(t)
 
-	cluster := newCluster("cluster")
-	machine := newMachine(cluster, "machine")
-	config := newKubeadmConfig(machine, "cfg")
+	cluster := newCluster("cluster", metav1.NamespaceDefault)
+	machine := newMachine(cluster, "machine", metav1.NamespaceDefault)
+	config := newKubeadmConfig(machine, "cfg", metav1.NamespaceDefault)
 
 	// cluster infra not ready
 	cluster.Status = clusterv1.ClusterStatus{
@@ -190,7 +191,7 @@ func TestKubeadmConfigReconciler_ReturnEarlyIfClusterInfraNotReady(t *testing.T)
 
 	request := ctrl.Request{
 		NamespacedName: client.ObjectKey{
-			Namespace: "default",
+			Namespace: metav1.NamespaceDefault,
 			Name:      "cfg",
 		},
 	}
@@ -206,8 +207,8 @@ func TestKubeadmConfigReconciler_ReturnEarlyIfClusterInfraNotReady(t *testing.T)
 func TestKubeadmConfigReconciler_Reconcile_ReturnEarlyIfMachineHasNoCluster(t *testing.T) {
 	g := NewWithT(t)
 
-	machine := newMachine(nil, "machine") // Machine without a cluster
-	config := newKubeadmConfig(machine, "cfg")
+	machine := newMachine(nil, "machine", metav1.NamespaceDefault) // Machine without a cluster
+	config := newKubeadmConfig(machine, "cfg", metav1.NamespaceDefault)
 
 	objects := []client.Object{
 		machine,
@@ -221,7 +222,7 @@ func TestKubeadmConfigReconciler_Reconcile_ReturnEarlyIfMachineHasNoCluster(t *t
 
 	request := ctrl.Request{
 		NamespacedName: client.ObjectKey{
-			Namespace: "default",
+			Namespace: metav1.NamespaceDefault,
 			Name:      "cfg",
 		},
 	}
@@ -233,8 +234,8 @@ func TestKubeadmConfigReconciler_Reconcile_ReturnEarlyIfMachineHasNoCluster(t *t
 func TestKubeadmConfigReconciler_Reconcile_ReturnNilIfMachineDoesNotHaveAssociatedCluster(t *testing.T) {
 	g := NewWithT(t)
 
-	machine := newMachine(nil, "machine") // intentionally omitting cluster
-	config := newKubeadmConfig(machine, "cfg")
+	machine := newMachine(nil, "machine", metav1.NamespaceDefault) // intentionally omitting cluster
+	config := newKubeadmConfig(machine, "cfg", metav1.NamespaceDefault)
 
 	objects := []client.Object{
 		machine,
@@ -248,7 +249,7 @@ func TestKubeadmConfigReconciler_Reconcile_ReturnNilIfMachineDoesNotHaveAssociat
 
 	request := ctrl.Request{
 		NamespacedName: client.ObjectKey{
-			Namespace: "default",
+			Namespace: metav1.NamespaceDefault,
 			Name:      "cfg",
 		},
 	}
@@ -260,9 +261,9 @@ func TestKubeadmConfigReconciler_Reconcile_ReturnNilIfMachineDoesNotHaveAssociat
 func TestKubeadmConfigReconciler_Reconcile_ReturnNilIfAssociatedClusterIsNotFound(t *testing.T) {
 	g := NewWithT(t)
 
-	cluster := newCluster("cluster")
-	machine := newMachine(cluster, "machine")
-	config := newKubeadmConfig(machine, "cfg")
+	cluster := newCluster("cluster", metav1.NamespaceDefault)
+	machine := newMachine(cluster, "machine", metav1.NamespaceDefault)
+	config := newKubeadmConfig(machine, "cfg", metav1.NamespaceDefault)
 
 	objects := []client.Object{
 		// intentionally omitting cluster
@@ -277,7 +278,7 @@ func TestKubeadmConfigReconciler_Reconcile_ReturnNilIfAssociatedClusterIsNotFoun
 
 	request := ctrl.Request{
 		NamespacedName: client.ObjectKey{
-			Namespace: "default",
+			Namespace: metav1.NamespaceDefault,
 			Name:      "cfg",
 		},
 	}
@@ -287,7 +288,7 @@ func TestKubeadmConfigReconciler_Reconcile_ReturnNilIfAssociatedClusterIsNotFoun
 
 // If the control plane isn't initialized then there is no cluster for either a worker or control plane node to join.
 func TestKubeadmConfigReconciler_Reconcile_RequeueJoiningNodesIfControlPlaneNotInitialized(t *testing.T) {
-	cluster := newCluster("cluster")
+	cluster := newCluster("cluster", metav1.NamespaceDefault)
 	cluster.Status.InfrastructureReady = true
 
 	workerMachine := newWorkerMachine(cluster)
@@ -354,7 +355,7 @@ func TestKubeadmConfigReconciler_Reconcile_RequeueJoiningNodesIfControlPlaneNotI
 func TestKubeadmConfigReconciler_Reconcile_GenerateCloudConfigData(t *testing.T) {
 	g := NewWithT(t)
 
-	cluster := newCluster("cluster")
+	cluster := newCluster("cluster", metav1.NamespaceDefault)
 	cluster.Status.InfrastructureReady = true
 
 	controlPlaneInitMachine := newControlPlaneMachine(cluster, "control-plane-init-machine")
@@ -376,7 +377,7 @@ func TestKubeadmConfigReconciler_Reconcile_GenerateCloudConfigData(t *testing.T)
 
 	request := ctrl.Request{
 		NamespacedName: client.ObjectKey{
-			Namespace: "default",
+			Namespace: metav1.NamespaceDefault,
 			Name:      "control-plane-init-cfg",
 		},
 	}
@@ -385,7 +386,7 @@ func TestKubeadmConfigReconciler_Reconcile_GenerateCloudConfigData(t *testing.T)
 	g.Expect(result.Requeue).To(BeFalse())
 	g.Expect(result.RequeueAfter).To(Equal(time.Duration(0)))
 
-	cfg, err := getKubeadmConfig(myclient, "control-plane-init-cfg")
+	cfg, err := getKubeadmConfig(myclient, "control-plane-init-cfg", metav1.NamespaceDefault)
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(cfg.Status.Ready).To(BeTrue())
 	g.Expect(cfg.Status.DataSecretName).NotTo(BeNil())
@@ -402,7 +403,7 @@ func TestKubeadmConfigReconciler_Reconcile_GenerateCloudConfigData(t *testing.T)
 func TestKubeadmConfigReconciler_Reconcile_ErrorIfJoiningControlPlaneHasInvalidConfiguration(t *testing.T) {
 	g := NewWithT(t)
 	// TODO: extract this kind of code into a setup function that puts the state of objects into an initialized controlplane (implies secrets exist)
-	cluster := newCluster("cluster")
+	cluster := newCluster("cluster", metav1.NamespaceDefault)
 	cluster.Status.InfrastructureReady = true
 	conditions.MarkTrue(cluster, clusterv1.ControlPlaneInitializedCondition)
 	cluster.Spec.ControlPlaneEndpoint = clusterv1.APIEndpoint{Host: "100.105.150.1", Port: 6443}
@@ -429,7 +430,7 @@ func TestKubeadmConfigReconciler_Reconcile_ErrorIfJoiningControlPlaneHasInvalidC
 
 	request := ctrl.Request{
 		NamespacedName: client.ObjectKey{
-			Namespace: "default",
+			Namespace: metav1.NamespaceDefault,
 			Name:      "control-plane-join-cfg",
 		},
 	}
@@ -441,7 +442,7 @@ func TestKubeadmConfigReconciler_Reconcile_ErrorIfJoiningControlPlaneHasInvalidC
 func TestKubeadmConfigReconciler_Reconcile_RequeueIfControlPlaneIsMissingAPIEndpoints(t *testing.T) {
 	g := NewWithT(t)
 
-	cluster := newCluster("cluster")
+	cluster := newCluster("cluster", metav1.NamespaceDefault)
 	cluster.Status.InfrastructureReady = true
 	conditions.MarkTrue(cluster, clusterv1.ControlPlaneInitializedCondition)
 	controlPlaneInitMachine := newControlPlaneMachine(cluster, "control-plane-init-machine")
@@ -466,7 +467,7 @@ func TestKubeadmConfigReconciler_Reconcile_RequeueIfControlPlaneIsMissingAPIEndp
 
 	request := ctrl.Request{
 		NamespacedName: client.ObjectKey{
-			Namespace: "default",
+			Namespace: metav1.NamespaceDefault,
 			Name:      "worker-join-cfg",
 		},
 	}
@@ -477,7 +478,7 @@ func TestKubeadmConfigReconciler_Reconcile_RequeueIfControlPlaneIsMissingAPIEndp
 }
 
 func TestReconcileIfJoinNodesAndControlPlaneIsReady(t *testing.T) {
-	cluster := newCluster("cluster")
+	cluster := newCluster("cluster", metav1.NamespaceDefault)
 	cluster.Status.InfrastructureReady = true
 	conditions.MarkTrue(cluster, clusterv1.ControlPlaneInitializedCondition)
 	cluster.Spec.ControlPlaneEndpoint = clusterv1.APIEndpoint{Host: "100.105.150.1", Port: 6443}
@@ -497,10 +498,12 @@ func TestReconcileIfJoinNodesAndControlPlaneIsReady(t *testing.T) {
 			},
 		},
 		{
-			name:          "Join a worker node  with an empty kubeadm config object (defaults apply)",
-			machine:       newWorkerMachine(cluster),
-			configName:    "worker-join-cfg",
-			configBuilder: newKubeadmConfig,
+			name:       "Join a worker node  with an empty kubeadm config object (defaults apply)",
+			machine:    newWorkerMachine(cluster),
+			configName: "worker-join-cfg",
+			configBuilder: func(machine *clusterv1.Machine, name string) *bootstrapv1.KubeadmConfig {
+				return newKubeadmConfig(machine, name, machine.Namespace)
+			},
 		},
 		{
 			name:          "Join a control plane node with a fully compiled kubeadm config object",
@@ -509,10 +512,12 @@ func TestReconcileIfJoinNodesAndControlPlaneIsReady(t *testing.T) {
 			configBuilder: newControlPlaneJoinKubeadmConfig,
 		},
 		{
-			name:          "Join a control plane node with an empty kubeadm config object (defaults apply)",
-			machine:       newControlPlaneMachine(cluster, "control-plane-join-machine"),
-			configName:    "control-plane-join-cfg",
-			configBuilder: newKubeadmConfig,
+			name:       "Join a control plane node with an empty kubeadm config object (defaults apply)",
+			machine:    newControlPlaneMachine(cluster, "control-plane-join-machine"),
+			configName: "control-plane-join-cfg",
+			configBuilder: func(machine *clusterv1.Machine, name string) *bootstrapv1.KubeadmConfig {
+				return newKubeadmConfig(machine, name, machine.Namespace)
+			},
 		},
 	}
 
@@ -547,7 +552,7 @@ func TestReconcileIfJoinNodesAndControlPlaneIsReady(t *testing.T) {
 			g.Expect(result.Requeue).To(BeFalse())
 			g.Expect(result.RequeueAfter).To(Equal(time.Duration(0)))
 
-			cfg, err := getKubeadmConfig(myclient, rt.configName)
+			cfg, err := getKubeadmConfig(myclient, rt.configName, metav1.NamespaceDefault)
 			g.Expect(err).NotTo(HaveOccurred())
 			g.Expect(cfg.Status.Ready).To(BeTrue())
 			g.Expect(cfg.Status.DataSecretName).NotTo(BeNil())
@@ -565,7 +570,7 @@ func TestReconcileIfJoinNodesAndControlPlaneIsReady(t *testing.T) {
 func TestReconcileIfJoinNodePoolsAndControlPlaneIsReady(t *testing.T) {
 	_ = feature.MutableGates.Set("MachinePool=true")
 
-	cluster := newCluster("cluster")
+	cluster := newCluster("cluster", metav1.NamespaceDefault)
 	cluster.Status.InfrastructureReady = true
 	conditions.MarkTrue(cluster, clusterv1.ControlPlaneInitializedCondition)
 	cluster.Spec.ControlPlaneEndpoint = clusterv1.APIEndpoint{Host: "100.105.150.1", Port: 6443}
@@ -623,7 +628,7 @@ func TestReconcileIfJoinNodePoolsAndControlPlaneIsReady(t *testing.T) {
 			g.Expect(result.Requeue).To(BeFalse())
 			g.Expect(result.RequeueAfter).To(Equal(time.Duration(0)))
 
-			cfg, err := getKubeadmConfig(myclient, rt.configName)
+			cfg, err := getKubeadmConfig(myclient, rt.configName, metav1.NamespaceDefault)
 			g.Expect(err).NotTo(HaveOccurred())
 			g.Expect(cfg.Status.Ready).To(BeTrue())
 			g.Expect(cfg.Status.DataSecretName).NotTo(BeNil())
@@ -643,7 +648,7 @@ func TestReconcileIfJoinNodePoolsAndControlPlaneIsReady(t *testing.T) {
 func TestKubeadmConfigSecretCreatedStatusNotPatched(t *testing.T) {
 	g := NewWithT(t)
 
-	cluster := newCluster("cluster")
+	cluster := newCluster("cluster", metav1.NamespaceDefault)
 	cluster.Status.InfrastructureReady = true
 	conditions.MarkTrue(cluster, clusterv1.ControlPlaneInitializedCondition)
 	cluster.Spec.ControlPlaneEndpoint = clusterv1.APIEndpoint{Host: "100.105.150.1", Port: 6443}
@@ -667,7 +672,7 @@ func TestKubeadmConfigSecretCreatedStatusNotPatched(t *testing.T) {
 	}
 	request := ctrl.Request{
 		NamespacedName: client.ObjectKey{
-			Namespace: "default",
+			Namespace: metav1.NamespaceDefault,
 			Name:      "worker-join-cfg",
 		},
 	}
@@ -702,7 +707,7 @@ func TestKubeadmConfigSecretCreatedStatusNotPatched(t *testing.T) {
 	g.Expect(result.Requeue).To(BeFalse())
 	g.Expect(result.RequeueAfter).To(Equal(time.Duration(0)))
 
-	cfg, err := getKubeadmConfig(myclient, "worker-join-cfg")
+	cfg, err := getKubeadmConfig(myclient, "worker-join-cfg", metav1.NamespaceDefault)
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(cfg.Status.Ready).To(BeTrue())
 	g.Expect(cfg.Status.DataSecretName).NotTo(BeNil())
@@ -712,7 +717,7 @@ func TestKubeadmConfigSecretCreatedStatusNotPatched(t *testing.T) {
 func TestBootstrapTokenTTLExtension(t *testing.T) {
 	g := NewWithT(t)
 
-	cluster := newCluster("cluster")
+	cluster := newCluster("cluster", metav1.NamespaceDefault)
 	cluster.Status.InfrastructureReady = true
 	conditions.MarkTrue(cluster, clusterv1.ControlPlaneInitializedCondition)
 	cluster.Spec.ControlPlaneEndpoint = clusterv1.APIEndpoint{Host: "100.105.150.1", Port: 6443}
@@ -740,7 +745,7 @@ func TestBootstrapTokenTTLExtension(t *testing.T) {
 	}
 	request := ctrl.Request{
 		NamespacedName: client.ObjectKey{
-			Namespace: "default",
+			Namespace: metav1.NamespaceDefault,
 			Name:      "worker-join-cfg",
 		},
 	}
@@ -749,7 +754,7 @@ func TestBootstrapTokenTTLExtension(t *testing.T) {
 	g.Expect(result.Requeue).To(BeFalse())
 	g.Expect(result.RequeueAfter).To(Equal(time.Duration(0)))
 
-	cfg, err := getKubeadmConfig(myclient, "worker-join-cfg")
+	cfg, err := getKubeadmConfig(myclient, "worker-join-cfg", metav1.NamespaceDefault)
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(cfg.Status.Ready).To(BeTrue())
 	g.Expect(cfg.Status.DataSecretName).NotTo(BeNil())
@@ -757,7 +762,7 @@ func TestBootstrapTokenTTLExtension(t *testing.T) {
 
 	request = ctrl.Request{
 		NamespacedName: client.ObjectKey{
-			Namespace: "default",
+			Namespace: metav1.NamespaceDefault,
 			Name:      "control-plane-join-cfg",
 		},
 	}
@@ -766,7 +771,7 @@ func TestBootstrapTokenTTLExtension(t *testing.T) {
 	g.Expect(result.Requeue).To(BeFalse())
 	g.Expect(result.RequeueAfter).To(Equal(time.Duration(0)))
 
-	cfg, err = getKubeadmConfig(myclient, "control-plane-join-cfg")
+	cfg, err = getKubeadmConfig(myclient, "control-plane-join-cfg", metav1.NamespaceDefault)
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(cfg.Status.Ready).To(BeTrue())
 	g.Expect(cfg.Status.DataSecretName).NotTo(BeNil())
@@ -789,13 +794,13 @@ func TestBootstrapTokenTTLExtension(t *testing.T) {
 	for _, req := range []ctrl.Request{
 		{
 			NamespacedName: client.ObjectKey{
-				Namespace: "default",
+				Namespace: metav1.NamespaceDefault,
 				Name:      "worker-join-cfg",
 			},
 		},
 		{
 			NamespacedName: client.ObjectKey{
-				Namespace: "default",
+				Namespace: metav1.NamespaceDefault,
 				Name:      "control-plane-join-cfg",
 			},
 		},
@@ -831,13 +836,13 @@ func TestBootstrapTokenTTLExtension(t *testing.T) {
 	for _, req := range []ctrl.Request{
 		{
 			NamespacedName: client.ObjectKey{
-				Namespace: "default",
+				Namespace: metav1.NamespaceDefault,
 				Name:      "worker-join-cfg",
 			},
 		},
 		{
 			NamespacedName: client.ObjectKey{
-				Namespace: "default",
+				Namespace: metav1.NamespaceDefault,
 				Name:      "control-plane-join-cfg",
 			},
 		},
@@ -862,7 +867,7 @@ func TestBootstrapTokenRotationMachinePool(t *testing.T) {
 	_ = feature.MutableGates.Set("MachinePool=true")
 	g := NewWithT(t)
 
-	cluster := newCluster("cluster")
+	cluster := newCluster("cluster", metav1.NamespaceDefault)
 	cluster.Status.InfrastructureReady = true
 	conditions.MarkTrue(cluster, clusterv1.ControlPlaneInitializedCondition)
 	cluster.Spec.ControlPlaneEndpoint = clusterv1.APIEndpoint{Host: "100.105.150.1", Port: 6443}
@@ -886,7 +891,7 @@ func TestBootstrapTokenRotationMachinePool(t *testing.T) {
 	}
 	request := ctrl.Request{
 		NamespacedName: client.ObjectKey{
-			Namespace: "default",
+			Namespace: metav1.NamespaceDefault,
 			Name:      "workerpool-join-cfg",
 		},
 	}
@@ -895,7 +900,7 @@ func TestBootstrapTokenRotationMachinePool(t *testing.T) {
 	g.Expect(result.Requeue).To(BeFalse())
 	g.Expect(result.RequeueAfter).To(Equal(time.Duration(0)))
 
-	cfg, err := getKubeadmConfig(myclient, "workerpool-join-cfg")
+	cfg, err := getKubeadmConfig(myclient, "workerpool-join-cfg", metav1.NamespaceDefault)
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(cfg.Status.Ready).To(BeTrue())
 	g.Expect(cfg.Status.DataSecretName).NotTo(BeNil())
@@ -918,7 +923,7 @@ func TestBootstrapTokenRotationMachinePool(t *testing.T) {
 	for _, req := range []ctrl.Request{
 		{
 			NamespacedName: client.ObjectKey{
-				Namespace: "default",
+				Namespace: metav1.NamespaceDefault,
 				Name:      "workerpool-join-cfg",
 			},
 		},
@@ -948,7 +953,7 @@ func TestBootstrapTokenRotationMachinePool(t *testing.T) {
 
 	request = ctrl.Request{
 		NamespacedName: client.ObjectKey{
-			Namespace: "default",
+			Namespace: metav1.NamespaceDefault,
 			Name:      "workerpool-join-cfg",
 		},
 	}
@@ -973,7 +978,7 @@ func TestBootstrapTokenRotationMachinePool(t *testing.T) {
 
 	request = ctrl.Request{
 		NamespacedName: client.ObjectKey{
-			Namespace: "default",
+			Namespace: metav1.NamespaceDefault,
 			Name:      "workerpool-join-cfg",
 		},
 	}
@@ -1280,7 +1285,7 @@ func TestKubeadmConfigReconciler_Reconcile_DynamicDefaultsForClusterConfiguratio
 func TestKubeadmConfigReconciler_Reconcile_AlwaysCheckCAVerificationUnlessRequestedToSkip(t *testing.T) {
 	// Setup work for an initialized cluster
 	clusterName := "my-cluster"
-	cluster := newCluster(clusterName)
+	cluster := newCluster(clusterName, metav1.NamespaceDefault)
 	conditions.MarkTrue(cluster, clusterv1.ControlPlaneInitializedCondition)
 	cluster.Status.InfrastructureReady = true
 	cluster.Spec.ControlPlaneEndpoint = clusterv1.APIEndpoint{
@@ -1291,13 +1296,13 @@ func TestKubeadmConfigReconciler_Reconcile_AlwaysCheckCAVerificationUnlessReques
 	initConfig := newControlPlaneInitKubeadmConfig(controlPlaneInitMachine, "my-control-plane-init-config")
 
 	controlPlaneMachineName := "my-machine"
-	machine := newMachine(cluster, controlPlaneMachineName)
+	machine := newMachine(cluster, controlPlaneMachineName, metav1.NamespaceDefault)
 
 	workerMachineName := "my-worker"
-	workerMachine := newMachine(cluster, workerMachineName)
+	workerMachine := newMachine(cluster, workerMachineName, metav1.NamespaceDefault)
 
 	controlPlaneConfigName := "my-config"
-	config := newKubeadmConfig(machine, controlPlaneConfigName)
+	config := newKubeadmConfig(machine, controlPlaneConfigName, metav1.NamespaceDefault)
 
 	objects := []client.Object{
 		cluster, machine, workerMachine, config,
@@ -1366,18 +1371,18 @@ func TestKubeadmConfigReconciler_ClusterToKubeadmConfigs(t *testing.T) {
 	_ = feature.MutableGates.Set("MachinePool=true")
 	g := NewWithT(t)
 
-	cluster := newCluster("my-cluster")
+	cluster := newCluster("my-cluster", metav1.NamespaceDefault)
 	objs := []client.Object{cluster}
 	expectedNames := []string{}
 	for i := 0; i < 3; i++ {
-		m := newMachine(cluster, fmt.Sprintf("my-machine-%d", i))
+		m := newMachine(cluster, fmt.Sprintf("my-machine-%d", i), metav1.NamespaceDefault)
 		configName := fmt.Sprintf("my-config-%d", i)
-		c := newKubeadmConfig(m, configName)
+		c := newKubeadmConfig(m, configName, metav1.NamespaceDefault)
 		expectedNames = append(expectedNames, configName)
 		objs = append(objs, m, c)
 	}
 	for i := 3; i < 6; i++ {
-		mp := newMachinePool(cluster, fmt.Sprintf("my-machinepool-%d", i))
+		mp := newMachinePool(cluster, fmt.Sprintf("my-machinepool-%d", i), metav1.NamespaceDefault)
 		configName := fmt.Sprintf("my-config-%d", i)
 		c := newMachinePoolKubeadmConfig(mp, configName)
 		expectedNames = append(expectedNames, configName)
@@ -1407,7 +1412,7 @@ func TestKubeadmConfigReconciler_ClusterToKubeadmConfigs(t *testing.T) {
 func TestKubeadmConfigReconciler_Reconcile_DoesNotFailIfCASecretsAlreadyExist(t *testing.T) {
 	g := NewWithT(t)
 
-	cluster := newCluster("my-cluster")
+	cluster := newCluster("my-cluster", metav1.NamespaceDefault)
 	cluster.Status.InfrastructureReady = true
 	m := newControlPlaneMachine(cluster, "control-plane-machine")
 	configName := "my-config"
@@ -1415,7 +1420,7 @@ func TestKubeadmConfigReconciler_Reconcile_DoesNotFailIfCASecretsAlreadyExist(t 
 	scrt := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      fmt.Sprintf("%s-%s", cluster.Name, secret.EtcdCA),
-			Namespace: "default",
+			Namespace: metav1.NamespaceDefault,
 		},
 		Data: map[string][]byte{
 			"tls.crt": []byte("hello world"),
@@ -1428,7 +1433,7 @@ func TestKubeadmConfigReconciler_Reconcile_DoesNotFailIfCASecretsAlreadyExist(t 
 		KubeadmInitLock: &myInitLocker{},
 	}
 	req := ctrl.Request{
-		NamespacedName: client.ObjectKey{Namespace: "default", Name: configName},
+		NamespacedName: client.ObjectKey{Namespace: metav1.NamespaceDefault, Name: configName},
 	}
 	_, err := reconciler.Reconcile(ctx, req)
 	g.Expect(err).NotTo(HaveOccurred())
@@ -1438,7 +1443,7 @@ func TestKubeadmConfigReconciler_Reconcile_DoesNotFailIfCASecretsAlreadyExist(t 
 func TestKubeadmConfigReconciler_Reconcile_ExactlyOneControlPlaneMachineInitializes(t *testing.T) {
 	g := NewWithT(t)
 
-	cluster := newCluster("cluster")
+	cluster := newCluster("cluster", metav1.NamespaceDefault)
 	cluster.Status.InfrastructureReady = true
 
 	controlPlaneInitMachineFirst := newControlPlaneMachine(cluster, "control-plane-init-machine-first")
@@ -1462,7 +1467,7 @@ func TestKubeadmConfigReconciler_Reconcile_ExactlyOneControlPlaneMachineInitiali
 
 	request := ctrl.Request{
 		NamespacedName: client.ObjectKey{
-			Namespace: "default",
+			Namespace: metav1.NamespaceDefault,
 			Name:      "control-plane-init-cfg-first",
 		},
 	}
@@ -1473,7 +1478,7 @@ func TestKubeadmConfigReconciler_Reconcile_ExactlyOneControlPlaneMachineInitiali
 
 	request = ctrl.Request{
 		NamespacedName: client.ObjectKey{
-			Namespace: "default",
+			Namespace: metav1.NamespaceDefault,
 			Name:      "control-plane-init-cfg-second",
 		},
 	}
@@ -1487,7 +1492,7 @@ func TestKubeadmConfigReconciler_Reconcile_ExactlyOneControlPlaneMachineInitiali
 func TestKubeadmConfigReconciler_Reconcile_PatchWhenErrorOccurred(t *testing.T) {
 	g := NewWithT(t)
 
-	cluster := newCluster("cluster")
+	cluster := newCluster("cluster", metav1.NamespaceDefault)
 	cluster.Status.InfrastructureReady = true
 
 	controlPlaneInitMachine := newControlPlaneMachine(cluster, "control-plane-init-machine")
@@ -1517,7 +1522,7 @@ func TestKubeadmConfigReconciler_Reconcile_PatchWhenErrorOccurred(t *testing.T) 
 
 	request := ctrl.Request{
 		NamespacedName: client.ObjectKey{
-			Namespace: "default",
+			Namespace: metav1.NamespaceDefault,
 			Name:      "control-plane-init-cfg",
 		},
 	}
@@ -1527,7 +1532,7 @@ func TestKubeadmConfigReconciler_Reconcile_PatchWhenErrorOccurred(t *testing.T) 
 	g.Expect(result.Requeue).To(BeFalse())
 	g.Expect(result.RequeueAfter).To(Equal(time.Duration(0)))
 
-	cfg, err := getKubeadmConfig(myclient, "control-plane-init-cfg")
+	cfg, err := getKubeadmConfig(myclient, "control-plane-init-cfg", metav1.NamespaceDefault)
 	g.Expect(err).NotTo(HaveOccurred())
 	// check if the kubeadm config has been patched
 	g.Expect(cfg.Spec.InitConfiguration).ToNot(BeNil())
@@ -1678,28 +1683,28 @@ func TestKubeadmConfigReconciler_ResolveFiles(t *testing.T) {
 // test utils
 
 // newCluster return a CAPI cluster object.
-func newCluster(name string) *clusterv1.Cluster {
+func newCluster(name, namespace string) *clusterv1.Cluster {
 	return &clusterv1.Cluster{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Cluster",
 			APIVersion: clusterv1.GroupVersion.String(),
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "default",
+			Namespace: namespace,
 			Name:      name,
 		},
 	}
 }
 
 // newMachine return a CAPI machine object; if cluster is not nil, the machine is linked to the cluster as well.
-func newMachine(cluster *clusterv1.Cluster, name string) *clusterv1.Machine {
+func newMachine(cluster *clusterv1.Cluster, name, namespace string) *clusterv1.Machine {
 	machine := &clusterv1.Machine{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Machine",
 			APIVersion: clusterv1.GroupVersion.String(),
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "default",
+			Namespace: namespace,
 			Name:      name,
 		},
 		Spec: clusterv1.MachineSpec{
@@ -1722,24 +1727,24 @@ func newMachine(cluster *clusterv1.Cluster, name string) *clusterv1.Machine {
 }
 
 func newWorkerMachine(cluster *clusterv1.Cluster) *clusterv1.Machine {
-	return newMachine(cluster, "worker-machine") // machine by default is a worker node (not the bootstrapNode)
+	return newMachine(cluster, "worker-machine", cluster.Namespace) // machine by default is a worker node (not the bootstrapNode)
 }
 
 func newControlPlaneMachine(cluster *clusterv1.Cluster, name string) *clusterv1.Machine {
-	m := newMachine(cluster, name)
+	m := newMachine(cluster, name, cluster.Namespace)
 	m.Labels[clusterv1.MachineControlPlaneLabelName] = ""
 	return m
 }
 
 // newMachinePool return a CAPI machine pool object; if cluster is not nil, the machine pool is linked to the cluster as well.
-func newMachinePool(cluster *clusterv1.Cluster, name string) *expv1.MachinePool {
+func newMachinePool(cluster *clusterv1.Cluster, name, namespace string) *expv1.MachinePool {
 	machine := &expv1.MachinePool{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "MachinePool",
 			APIVersion: expv1.GroupVersion.String(),
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "default",
+			Namespace: namespace,
 			Name:      name,
 		},
 		Spec: expv1.MachinePoolSpec{
@@ -1766,18 +1771,18 @@ func newMachinePool(cluster *clusterv1.Cluster, name string) *expv1.MachinePool 
 }
 
 func newWorkerMachinePool(cluster *clusterv1.Cluster) *expv1.MachinePool {
-	return newMachinePool(cluster, "worker-machinepool")
+	return newMachinePool(cluster, "worker-machinepool", cluster.Namespace)
 }
 
 // newKubeadmConfig return a CABPK KubeadmConfig object; if machine is not nil, the KubeadmConfig is linked to the machine as well.
-func newKubeadmConfig(machine *clusterv1.Machine, name string) *bootstrapv1.KubeadmConfig {
+func newKubeadmConfig(machine *clusterv1.Machine, name, namespace string) *bootstrapv1.KubeadmConfig {
 	config := &bootstrapv1.KubeadmConfig{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "KubeadmConfig",
 			APIVersion: bootstrapv1.GroupVersion.String(),
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "default",
+			Namespace: namespace,
 			Name:      name,
 		},
 	}
@@ -1797,7 +1802,7 @@ func newKubeadmConfig(machine *clusterv1.Machine, name string) *bootstrapv1.Kube
 }
 
 func newWorkerJoinKubeadmConfig(machine *clusterv1.Machine) *bootstrapv1.KubeadmConfig {
-	c := newKubeadmConfig(machine, "worker-join-cfg")
+	c := newKubeadmConfig(machine, "worker-join-cfg", machine.Namespace)
 	c.Spec.JoinConfiguration = &bootstrapv1.JoinConfiguration{
 		ControlPlane: nil,
 	}
@@ -1805,7 +1810,7 @@ func newWorkerJoinKubeadmConfig(machine *clusterv1.Machine) *bootstrapv1.Kubeadm
 }
 
 func newControlPlaneJoinKubeadmConfig(machine *clusterv1.Machine, name string) *bootstrapv1.KubeadmConfig {
-	c := newKubeadmConfig(machine, name)
+	c := newKubeadmConfig(machine, name, machine.Namespace)
 	c.Spec.JoinConfiguration = &bootstrapv1.JoinConfiguration{
 		ControlPlane: &bootstrapv1.JoinControlPlane{},
 	}
@@ -1813,7 +1818,7 @@ func newControlPlaneJoinKubeadmConfig(machine *clusterv1.Machine, name string) *
 }
 
 func newControlPlaneInitKubeadmConfig(machine *clusterv1.Machine, name string) *bootstrapv1.KubeadmConfig {
-	c := newKubeadmConfig(machine, name)
+	c := newKubeadmConfig(machine, name, machine.Namespace)
 	c.Spec.ClusterConfiguration = &bootstrapv1.ClusterConfiguration{}
 	c.Spec.InitConfiguration = &bootstrapv1.InitConfiguration{}
 	return c
@@ -1828,7 +1833,7 @@ func newMachinePoolKubeadmConfig(machinePool *expv1.MachinePool, name string) *b
 			APIVersion: bootstrapv1.GroupVersion.String(),
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "default",
+			Namespace: metav1.NamespaceDefault,
 			Name:      name,
 		},
 	}
