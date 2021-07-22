@@ -17,13 +17,17 @@ limitations under the License.
 package v1alpha4
 
 import (
-	"errors"
+	"fmt"
 	"reflect"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	runtime "k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 )
+
+const dockerMachineTemplateImmutableMsg = "DockerMachineTemplate spec.template.spec field is immutable. Please create a new resource instead."
 
 func (m *DockerMachineTemplate) SetupWebhookWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr).
@@ -41,12 +45,19 @@ func (m *DockerMachineTemplate) ValidateCreate() error {
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type.
-func (m *DockerMachineTemplate) ValidateUpdate(old runtime.Object) error {
-	oldCRS := old.(*DockerMachineTemplate)
-	if !reflect.DeepEqual(m.Spec, oldCRS.Spec) {
-		return errors.New("DockerMachineTemplateSpec is immutable")
+func (m *DockerMachineTemplate) ValidateUpdate(oldRaw runtime.Object) error {
+	var allErrs field.ErrorList
+	old, ok := oldRaw.(*DockerMachineTemplate)
+	if !ok {
+		return apierrors.NewBadRequest(fmt.Sprintf("expected a DockerMachineTemplate but got a %T", oldRaw))
 	}
-	return nil
+	if !reflect.DeepEqual(m.Spec.Template.Spec, old.Spec.Template.Spec) {
+		allErrs = append(allErrs, field.Invalid(field.NewPath("spec", "template", "spec"), m, dockerMachineTemplateImmutableMsg))
+	}
+	if len(allErrs) == 0 {
+		return nil
+	}
+	return apierrors.NewInvalid(GroupVersion.WithKind("DockerMachineTemplate").GroupKind(), m.Name, allErrs)
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type.

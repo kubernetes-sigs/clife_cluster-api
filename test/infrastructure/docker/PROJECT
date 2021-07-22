@@ -20,3 +20,6 @@ resources:
 - group: infrastructure
   version: v1alpha4
   kind: DockerMachinePool
+- group: infrastructure
+  version: v1alpha4
+  kind: DockerClusterTemplate
