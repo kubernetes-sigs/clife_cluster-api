@@ -32,11 +32,15 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
+const (
+	notDefaultNamespace = "not-default"
+)
+
 func TestGetorCreateClusterResourceSetBinding(t *testing.T) {
 	testClusterWithBinding := &clusterv1.Cluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-cluster-with-binding",
-			Namespace: "default",
+			Namespace: metav1.NamespaceDefault,
 		},
 	}
 
@@ -68,7 +72,7 @@ func TestGetorCreateClusterResourceSetBinding(t *testing.T) {
 	testClusterNoBinding := &clusterv1.Cluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-cluster-no-binding",
-			Namespace: "default",
+			Namespace: metav1.NamespaceDefault,
 		},
 	}
 
@@ -109,7 +113,7 @@ func TestGetorCreateClusterResourceSetBinding(t *testing.T) {
 }
 
 func TestGetSecretFromNamespacedName(t *testing.T) {
-	existingSecretName := types.NamespacedName{Name: "my-secret", Namespace: "default"}
+	existingSecretName := types.NamespacedName{Name: "my-secret", Namespace: metav1.NamespaceDefault}
 	existingSecret := &corev1.Secret{
 		TypeMeta: metav1.TypeMeta{Kind: "Secret", APIVersion: "v1"},
 		ObjectMeta: metav1.ObjectMeta{
@@ -126,13 +130,13 @@ func TestGetSecretFromNamespacedName(t *testing.T) {
 	}{
 		{
 			name:       "should return secret when secret exists",
-			secretName: types.NamespacedName{Name: "my-secret", Namespace: "default"},
+			secretName: types.NamespacedName{Name: "my-secret", Namespace: metav1.NamespaceDefault},
 			want:       existingSecret,
 			wantErr:    false,
 		},
 		{
 			name:       "should return error when secret does not exist",
-			secretName: types.NamespacedName{Name: "my-secret", Namespace: "not-default"},
+			secretName: types.NamespacedName{Name: "my-secret", Namespace: notDefaultNamespace},
 			want:       nil,
 			wantErr:    true,
 		},
@@ -165,7 +169,7 @@ func TestGetConfigMapFromNamespacedName(t *testing.T) {
 	scheme := runtime.NewScheme()
 	g.Expect(corev1.AddToScheme(scheme)).To(Succeed())
 
-	existingConfigMapName := types.NamespacedName{Name: "my-configmap", Namespace: "default"}
+	existingConfigMapName := types.NamespacedName{Name: "my-configmap", Namespace: metav1.NamespaceDefault}
 	existingConfigMap := &corev1.ConfigMap{
 		TypeMeta: metav1.TypeMeta{Kind: "ConfigMap", APIVersion: "v1"},
 		ObjectMeta: metav1.ObjectMeta{
@@ -182,13 +186,13 @@ func TestGetConfigMapFromNamespacedName(t *testing.T) {
 	}{
 		{
 			name:          "should return configmap when configmap exists",
-			configMapName: types.NamespacedName{Name: "my-configmap", Namespace: "default"},
+			configMapName: types.NamespacedName{Name: "my-configmap", Namespace: metav1.NamespaceDefault},
 			want:          existingConfigMap,
 			wantErr:       false,
 		},
 		{
 			name:          "should return error when configmap does not exist",
-			configMapName: types.NamespacedName{Name: "my-configmap", Namespace: "not-default"},
+			configMapName: types.NamespacedName{Name: "my-configmap", Namespace: notDefaultNamespace},
 			want:          nil,
 			wantErr:       true,
 		},

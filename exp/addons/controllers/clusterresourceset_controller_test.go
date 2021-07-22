@@ -34,24 +34,29 @@ import (
 )
 
 const (
-	timeout              = time.Second * 15
-	defaultNamespaceName = "default"
+	timeout = time.Second * 15
 )
 
 func TestClusterResourceSetReconciler(t *testing.T) {
-	var clusterResourceSetName string
-	var testCluster *clusterv1.Cluster
-	var clusterName string
-	var labels map[string]string
-	var configmapName = "test-configmap"
-	var secretName = "test-secret"
+	var (
+		clusterResourceSetName string
+		testCluster            *clusterv1.Cluster
+		clusterName            string
+		labels                 map[string]string
+		configmapName          = "test-configmap"
+		secretName             = "test-secret"
+		namespacePrefix        = "test-cluster-resource-set"
+	)
 
-	setup := func(t *testing.T, g *WithT) {
+	setup := func(t *testing.T, g *WithT) *corev1.Namespace {
 		clusterResourceSetName = fmt.Sprintf("clusterresourceset-%s", util.RandomString(6))
 		labels = map[string]string{clusterResourceSetName: "bar"}
 
+		ns, err := env.CreateNamespace(ctx, namespacePrefix)
+		g.Expect(err).ToNot(HaveOccurred())
+
 		clusterName = fmt.Sprintf("cluster-%s", util.RandomString(6))
-		testCluster = &clusterv1.Cluster{ObjectMeta: metav1.ObjectMeta{Name: clusterName, Namespace: defaultNamespaceName}}
+		testCluster = &clusterv1.Cluster{ObjectMeta: metav1.ObjectMeta{Name: clusterName, Namespace: ns.Name}}
 
 		t.Log("Creating the Cluster")
 		g.Expect(env.Create(ctx, testCluster)).To(Succeed())
@@ -60,7 +65,7 @@ func TestClusterResourceSetReconciler(t *testing.T) {
 		testConfigmap := &corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      configmapName,
-				Namespace: defaultNamespaceName,
+				Namespace: ns.Name,
 			},
 			Data: map[string]string{
 				"cm": `metadata:
@@ -73,7 +78,7 @@ apiVersion: v1`,
 		testSecret := &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      secretName,
-				Namespace: defaultNamespaceName,
+				Namespace: ns.Name,
 			},
 			Type: "addons.cluster.x-k8s.io/resource-set",
 			StringData: map[string]string{
@@ -88,14 +93,16 @@ metadata:
 		t.Log("Creating a Secret and a ConfigMap with ConfigMap in their data field")
 		g.Expect(env.Create(ctx, testConfigmap)).To(Succeed())
 		g.Expect(env.Create(ctx, testSecret)).To(Succeed())
+
+		return ns
 	}
 
-	teardown := func(t *testing.T, g *WithT) {
+	teardown := func(t *testing.T, g *WithT, ns *corev1.Namespace) {
 		t.Log("Deleting the Kubeconfigsecret")
 		secret := &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      clusterName + "-kubeconfig",
-				Namespace: defaultNamespaceName,
+				Namespace: ns.Name,
 			},
 		}
 		g.Expect(env.Delete(ctx, secret)).To(Succeed())
@@ -103,7 +110,7 @@ metadata:
 		clusterResourceSetInstance := &addonsv1.ClusterResourceSet{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      clusterResourceSetName,
-				Namespace: defaultNamespaceName,
+				Namespace: ns.Name,
 			},
 		}
 
@@ -124,18 +131,19 @@ metadata:
 
 		g.Expect(env.Delete(ctx, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{
 			Name:      configmapName,
-			Namespace: defaultNamespaceName,
+			Namespace: ns.Name,
 		}})).To(Succeed())
 		g.Expect(env.Delete(ctx, &corev1.Secret{ObjectMeta: metav1.ObjectMeta{
 			Name:      secretName,
-			Namespace: defaultNamespaceName,
+			Namespace: ns.Name,
 		}})).To(Succeed())
+		g.Expect(env.Delete(ctx, ns)).To(Succeed())
 	}
 
 	t.Run("Should reconcile a ClusterResourceSet with multiple resources when a cluster with matching label exists", func(t *testing.T) {
 		g := NewWithT(t)
-		setup(t, g)
-		defer teardown(t, g)
+		ns := setup(t, g)
+		defer teardown(t, g, ns)
 
 		t.Log("Updating the cluster with labels")
 		testCluster.SetLabels(labels)
@@ -145,7 +153,7 @@ metadata:
 		clusterResourceSetInstance := &addonsv1.ClusterResourceSet{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      clusterResourceSetName,
-				Namespace: defaultNamespaceName,
+				Namespace: ns.Name,
 			},
 			Spec: addonsv1.ClusterResourceSetSpec{
 				ClusterSelector: metav1.LabelSelector{
@@ -193,13 +201,13 @@ metadata:
 
 	t.Run("Should reconcile a cluster when its labels are changed to match a ClusterResourceSet's selector", func(t *testing.T) {
 		g := NewWithT(t)
-		setup(t, g)
-		defer teardown(t, g)
+		ns := setup(t, g)
+		defer teardown(t, g, ns)
 
 		clusterResourceSetInstance := &addonsv1.ClusterResourceSet{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      clusterResourceSetName,
-				Namespace: defaultNamespaceName,
+				Namespace: ns.Name,
 			},
 			Spec: addonsv1.ClusterResourceSetSpec{
 				ClusterSelector: metav1.LabelSelector{
@@ -257,15 +265,15 @@ metadata:
 
 	t.Run("Should reconcile a ClusterResourceSet when a ConfigMap resource is created that is part of ClusterResourceSet resources", func(t *testing.T) {
 		g := NewWithT(t)
-		setup(t, g)
-		defer teardown(t, g)
+		ns := setup(t, g)
+		defer teardown(t, g, ns)
 
 		newCMName := fmt.Sprintf("test-configmap-%s", util.RandomString(6))
 
 		crsInstance := &addonsv1.ClusterResourceSet{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      clusterResourceSetName,
-				Namespace: defaultNamespaceName,
+				Namespace: ns.Name,
 			},
 			Spec: addonsv1.ClusterResourceSetSpec{
 				ClusterSelector: metav1.LabelSelector{
@@ -313,7 +321,7 @@ metadata:
 		newConfigmap := &corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      newCMName,
-				Namespace: defaultNamespaceName,
+				Namespace: ns.Name,
 			},
 			Data: map[string]string{},
 		}
@@ -323,7 +331,7 @@ metadata:
 		}()
 
 		cmKey := client.ObjectKey{
-			Namespace: defaultNamespaceName,
+			Namespace: ns.Name,
 			Name:      newCMName,
 		}
 		g.Eventually(func() bool {
@@ -356,15 +364,15 @@ metadata:
 
 	t.Run("Should reconcile a ClusterResourceSet when a Secret resource is created that is part of ClusterResourceSet resources", func(t *testing.T) {
 		g := NewWithT(t)
-		setup(t, g)
-		defer teardown(t, g)
+		ns := setup(t, g)
+		defer teardown(t, g, ns)
 
 		newSecretName := fmt.Sprintf("test-secret-%s", util.RandomString(6))
 
 		crsInstance := &addonsv1.ClusterResourceSet{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      clusterResourceSetName,
-				Namespace: defaultNamespaceName,
+				Namespace: ns.Name,
 			},
 			Spec: addonsv1.ClusterResourceSetSpec{
 				ClusterSelector: metav1.LabelSelector{
@@ -412,7 +420,7 @@ metadata:
 		newSecret := &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      newSecretName,
-				Namespace: defaultNamespaceName,
+				Namespace: ns.Name,
 			},
 			Type: addonsv1.ClusterResourceSetSecretType,
 			Data: map[string][]byte{},
@@ -423,7 +431,7 @@ metadata:
 		}()
 
 		cmKey := client.ObjectKey{
-			Namespace: defaultNamespaceName,
+			Namespace: ns.Name,
 			Name:      newSecretName,
 		}
 		g.Eventually(func() bool {
@@ -456,8 +464,8 @@ metadata:
 
 	t.Run("Should delete ClusterResourceSet from the bindings list when ClusterResourceSet is deleted", func(t *testing.T) {
 		g := NewWithT(t)
-		setup(t, g)
-		defer teardown(t, g)
+		ns := setup(t, g)
+		defer teardown(t, g, ns)
 
 		t.Log("Updating the cluster with labels")
 		testCluster.SetLabels(labels)
@@ -467,7 +475,7 @@ metadata:
 		clusterResourceSetInstance2 := &addonsv1.ClusterResourceSet{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      clusterResourceSetName,
-				Namespace: defaultNamespaceName,
+				Namespace: ns.Name,
 			},
 			Spec: addonsv1.ClusterResourceSetSpec{
 				ClusterSelector: metav1.LabelSelector{
@@ -483,7 +491,7 @@ metadata:
 		clusterResourceSetInstance3 := &addonsv1.ClusterResourceSet{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "test-clusterresourceset2",
-				Namespace: defaultNamespaceName,
+				Namespace: ns.Name,
 			},
 			Spec: addonsv1.ClusterResourceSetSpec{
 				ClusterSelector: metav1.LabelSelector{
@@ -543,14 +551,14 @@ metadata:
 
 	t.Run("Should add finalizer after reconcile", func(t *testing.T) {
 		g := NewWithT(t)
-		setup(t, g)
-		defer teardown(t, g)
+		ns := setup(t, g)
+		defer teardown(t, g, ns)
 
 		dt := metav1.Now()
 		clusterResourceSetInstance := &addonsv1.ClusterResourceSet{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:              clusterResourceSetName,
-				Namespace:         defaultNamespaceName,
+				Namespace:         ns.Name,
 				Finalizers:        []string{addonsv1.ClusterResourceSetFinalizer},
 				DeletionTimestamp: &dt,
 			},

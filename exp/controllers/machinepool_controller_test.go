@@ -40,7 +40,7 @@ func TestMachinePoolFinalizer(t *testing.T) {
 	bootstrapData := "some valid machinepool bootstrap data"
 	clusterCorrectMeta := &clusterv1.Cluster{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "default",
+			Namespace: metav1.NamespaceDefault,
 			Name:      "valid-cluster",
 		},
 	}
@@ -48,7 +48,7 @@ func TestMachinePoolFinalizer(t *testing.T) {
 	machinePoolValidCluster := &expv1.MachinePool{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "machinePool1",
-			Namespace: "default",
+			Namespace: metav1.NamespaceDefault,
 		},
 		Spec: expv1.MachinePoolSpec{
 			Replicas: pointer.Int32Ptr(1),
@@ -66,7 +66,7 @@ func TestMachinePoolFinalizer(t *testing.T) {
 	machinePoolWithFinalizer := &expv1.MachinePool{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       "machinePool2",
-			Namespace:  "default",
+			Namespace:  metav1.NamespaceDefault,
 			Finalizers: []string{"some-other-finalizer"},
 		},
 		Spec: expv1.MachinePoolSpec{
@@ -137,13 +137,13 @@ func TestMachinePoolOwnerReference(t *testing.T) {
 	bootstrapData := "some valid machinepool bootstrap data"
 	testCluster := &clusterv1.Cluster{
 		TypeMeta:   metav1.TypeMeta{Kind: "Cluster", APIVersion: clusterv1.GroupVersion.String()},
-		ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "test-cluster"},
+		ObjectMeta: metav1.ObjectMeta{Namespace: metav1.NamespaceDefault, Name: "test-cluster"},
 	}
 
 	machinePoolInvalidCluster := &expv1.MachinePool{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "machinePool1",
-			Namespace: "default",
+			Namespace: metav1.NamespaceDefault,
 		},
 		Spec: expv1.MachinePoolSpec{
 			Replicas:    pointer.Int32Ptr(1),
@@ -154,7 +154,7 @@ func TestMachinePoolOwnerReference(t *testing.T) {
 	machinePoolValidCluster := &expv1.MachinePool{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "machinePool2",
-			Namespace: "default",
+			Namespace: metav1.NamespaceDefault,
 		},
 		Spec: expv1.MachinePoolSpec{
 			Replicas: pointer.Int32Ptr(1),
@@ -172,7 +172,7 @@ func TestMachinePoolOwnerReference(t *testing.T) {
 	machinePoolValidMachinePool := &expv1.MachinePool{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "machinePool3",
-			Namespace: "default",
+			Namespace: metav1.NamespaceDefault,
 			Labels: map[string]string{
 				clusterv1.ClusterLabelName: "valid-cluster",
 			},
@@ -255,7 +255,7 @@ func TestReconcileMachinePoolRequest(t *testing.T) {
 			"apiVersion": "infrastructure.cluster.x-k8s.io/v1alpha4",
 			"metadata": map[string]interface{}{
 				"name":      "infra-config1",
-				"namespace": "default",
+				"namespace": metav1.NamespaceDefault,
 			},
 			"spec": map[string]interface{}{
 				"providerIDList": []interface{}{
@@ -278,7 +278,7 @@ func TestReconcileMachinePoolRequest(t *testing.T) {
 
 	testCluster := clusterv1.Cluster{
 		TypeMeta:   metav1.TypeMeta{Kind: "Cluster", APIVersion: clusterv1.GroupVersion.String()},
-		ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "test-cluster"},
+		ObjectMeta: metav1.ObjectMeta{Namespace: metav1.NamespaceDefault, Name: "test-cluster"},
 	}
 
 	bootstrapConfig := &unstructured.Unstructured{
@@ -287,7 +287,7 @@ func TestReconcileMachinePoolRequest(t *testing.T) {
 			"apiVersion": "bootstrap.cluster.x-k8s.io/v1alpha4",
 			"metadata": map[string]interface{}{
 				"name":      "test-bootstrap",
-				"namespace": "default",
+				"namespace": metav1.NamespaceDefault,
 			},
 		},
 	}
@@ -304,7 +304,7 @@ func TestReconcileMachinePoolRequest(t *testing.T) {
 			machinePool: expv1.MachinePool{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       "created",
-					Namespace:  "default",
+					Namespace:  metav1.NamespaceDefault,
 					Finalizers: []string{expv1.MachinePoolFinalizer},
 				},
 				Spec: expv1.MachinePoolSpec{
@@ -341,7 +341,7 @@ func TestReconcileMachinePoolRequest(t *testing.T) {
 			machinePool: expv1.MachinePool{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       "updated",
-					Namespace:  "default",
+					Namespace:  metav1.NamespaceDefault,
 					Finalizers: []string{expv1.MachinePoolFinalizer},
 				},
 				Spec: expv1.MachinePoolSpec{
@@ -377,7 +377,7 @@ func TestReconcileMachinePoolRequest(t *testing.T) {
 			machinePool: expv1.MachinePool{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "deleted",
-					Namespace: "default",
+					Namespace: metav1.NamespaceDefault,
 					Labels: map[string]string{
 						clusterv1.MachineControlPlaneLabelName: "",
 					},
@@ -435,7 +435,7 @@ func TestReconcileMachinePoolRequest(t *testing.T) {
 
 func TestReconcileMachinePoolDeleteExternal(t *testing.T) {
 	testCluster := &clusterv1.Cluster{
-		ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "test-cluster"},
+		ObjectMeta: metav1.ObjectMeta{Namespace: metav1.NamespaceDefault, Name: "test-cluster"},
 	}
 
 	bootstrapConfig := &unstructured.Unstructured{
@@ -444,7 +444,7 @@ func TestReconcileMachinePoolDeleteExternal(t *testing.T) {
 			"apiVersion": "bootstrap.cluster.x-k8s.io/v1alpha4",
 			"metadata": map[string]interface{}{
 				"name":      "delete-bootstrap",
-				"namespace": "default",
+				"namespace": metav1.NamespaceDefault,
 			},
 		},
 	}
@@ -455,7 +455,7 @@ func TestReconcileMachinePoolDeleteExternal(t *testing.T) {
 			"apiVersion": "infrastructure.cluster.x-k8s.io/v1alpha4",
 			"metadata": map[string]interface{}{
 				"name":      "delete-infra",
-				"namespace": "default",
+				"namespace": metav1.NamespaceDefault,
 			},
 		},
 	}
@@ -463,7 +463,7 @@ func TestReconcileMachinePoolDeleteExternal(t *testing.T) {
 	machinePool := &expv1.MachinePool{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "delete",
-			Namespace: "default",
+			Namespace: metav1.NamespaceDefault,
 		},
 		Spec: expv1.MachinePoolSpec{
 			ClusterName: "test-cluster",
@@ -558,13 +558,13 @@ func TestRemoveMachinePoolFinalizerAfterDeleteReconcile(t *testing.T) {
 	dt := metav1.Now()
 
 	testCluster := &clusterv1.Cluster{
-		ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "test-cluster"},
+		ObjectMeta: metav1.ObjectMeta{Namespace: metav1.NamespaceDefault, Name: "test-cluster"},
 	}
 
 	m := &expv1.MachinePool{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:              "delete123",
-			Namespace:         "default",
+			Namespace:         metav1.NamespaceDefault,
 			Finalizers:        []string{expv1.MachinePoolFinalizer, "test"},
 			DeletionTimestamp: &dt,
 		},
@@ -597,7 +597,7 @@ func TestRemoveMachinePoolFinalizerAfterDeleteReconcile(t *testing.T) {
 
 func TestMachinePoolConditions(t *testing.T) {
 	testCluster := &clusterv1.Cluster{
-		ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "test-cluster"},
+		ObjectMeta: metav1.ObjectMeta{Namespace: metav1.NamespaceDefault, Name: "test-cluster"},
 	}
 
 	bootstrapConfig := func(ready bool) *unstructured.Unstructured {
@@ -607,7 +607,7 @@ func TestMachinePoolConditions(t *testing.T) {
 				"apiVersion": "bootstrap.cluster.x-k8s.io/v1alpha4",
 				"metadata": map[string]interface{}{
 					"name":      "bootstrap1",
-					"namespace": "default",
+					"namespace": metav1.NamespaceDefault,
 				},
 				"status": map[string]interface{}{
 					"ready":          ready,
@@ -624,7 +624,7 @@ func TestMachinePoolConditions(t *testing.T) {
 				"apiVersion": "infrastructure.cluster.x-k8s.io/v1alpha4",
 				"metadata": map[string]interface{}{
 					"name":      "infra1",
-					"namespace": "default",
+					"namespace": metav1.NamespaceDefault,
 				},
 				"status": map[string]interface{}{
 					"ready": ready,
@@ -642,7 +642,7 @@ func TestMachinePoolConditions(t *testing.T) {
 	machinePool := &expv1.MachinePool{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       "blah",
-			Namespace:  "default",
+			Namespace:  metav1.NamespaceDefault,
 			Finalizers: []string{expv1.MachinePoolFinalizer},
 		},
 		Spec: expv1.MachinePoolSpec{

@@ -34,6 +34,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
+const (
+	clusterName    = "test-cluster"
+	wrongNamespace = "wrong-namespace"
+)
+
 func init() {
 	externalReadyWait = 1 * time.Second
 }
@@ -44,7 +49,7 @@ func TestReconcileMachinePoolPhases(t *testing.T) {
 	var defaultKubeconfigSecret *corev1.Secret
 	defaultCluster := &clusterv1.Cluster{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-cluster",
+			Name:      clusterName,
 			Namespace: metav1.NamespaceDefault,
 		},
 	}
@@ -52,7 +57,7 @@ func TestReconcileMachinePoolPhases(t *testing.T) {
 	defaultMachinePool := expv1.MachinePool{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "machinepool-test",
-			Namespace: "default",
+			Namespace: metav1.NamespaceDefault,
 		},
 		Spec: expv1.MachinePoolSpec{
 			ClusterName: defaultCluster.Name,
@@ -82,7 +87,7 @@ func TestReconcileMachinePoolPhases(t *testing.T) {
 			"apiVersion": "bootstrap.cluster.x-k8s.io/v1alpha4",
 			"metadata": map[string]interface{}{
 				"name":      "bootstrap-config1",
-				"namespace": "default",
+				"namespace": metav1.NamespaceDefault,
 			},
 			"spec":   map[string]interface{}{},
 			"status": map[string]interface{}{},
@@ -95,7 +100,7 @@ func TestReconcileMachinePoolPhases(t *testing.T) {
 			"apiVersion": "infrastructure.cluster.x-k8s.io/v1alpha4",
 			"metadata": map[string]interface{}{
 				"name":      "infra-config1",
-				"namespace": "default",
+				"namespace": metav1.NamespaceDefault,
 			},
 			"spec": map[string]interface{}{
 				"providerIDList": []interface{}{
@@ -127,12 +132,12 @@ func TestReconcileMachinePoolPhases(t *testing.T) {
 		g.Expect(r.Client.Get(ctx, types.NamespacedName{Name: bootstrapConfig.GetName(), Namespace: bootstrapConfig.GetNamespace()}, bootstrapConfig)).To(Succeed())
 
 		g.Expect(bootstrapConfig.GetOwnerReferences()).To(HaveLen(1))
-		g.Expect(bootstrapConfig.GetLabels()[clusterv1.ClusterLabelName]).To(BeEquivalentTo("test-cluster"))
+		g.Expect(bootstrapConfig.GetLabels()[clusterv1.ClusterLabelName]).To(BeEquivalentTo(clusterName))
 
 		g.Expect(r.Client.Get(ctx, types.NamespacedName{Name: infraConfig.GetName(), Namespace: infraConfig.GetNamespace()}, infraConfig)).To(Succeed())
 
 		g.Expect(infraConfig.GetOwnerReferences()).To(HaveLen(1))
-		g.Expect(infraConfig.GetLabels()[clusterv1.ClusterLabelName]).To(BeEquivalentTo("test-cluster"))
+		g.Expect(infraConfig.GetLabels()[clusterv1.ClusterLabelName]).To(BeEquivalentTo(clusterName))
 	})
 
 	t.Run("Should set `Pending` with a new MachinePool", func(t *testing.T) {
@@ -469,9 +474,9 @@ func TestReconcileMachinePoolBootstrap(t *testing.T) {
 	defaultMachinePool := expv1.MachinePool{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "machinepool-test",
-			Namespace: "default",
+			Namespace: metav1.NamespaceDefault,
 			Labels: map[string]string{
-				clusterv1.ClusterLabelName: "test-cluster",
+				clusterv1.ClusterLabelName: clusterName,
 			},
 		},
 		Spec: expv1.MachinePoolSpec{
@@ -491,8 +496,8 @@ func TestReconcileMachinePoolBootstrap(t *testing.T) {
 
 	defaultCluster := &clusterv1.Cluster{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-cluster",
-			Namespace: "default",
+			Name:      clusterName,
+			Namespace: metav1.NamespaceDefault,
 		},
 	}
 
@@ -511,7 +516,7 @@ func TestReconcileMachinePoolBootstrap(t *testing.T) {
 				"apiVersion": "bootstrap.cluster.x-k8s.io/v1alpha4",
 				"metadata": map[string]interface{}{
 					"name":      "bootstrap-config1",
-					"namespace": "default",
+					"namespace": metav1.NamespaceDefault,
 				},
 				"spec": map[string]interface{}{},
 				"status": map[string]interface{}{
@@ -533,7 +538,7 @@ func TestReconcileMachinePoolBootstrap(t *testing.T) {
 				"apiVersion": "bootstrap.cluster.x-k8s.io/v1alpha4",
 				"metadata": map[string]interface{}{
 					"name":      "bootstrap-config1",
-					"namespace": "default",
+					"namespace": metav1.NamespaceDefault,
 				},
 				"spec": map[string]interface{}{},
 				"status": map[string]interface{}{
@@ -553,7 +558,7 @@ func TestReconcileMachinePoolBootstrap(t *testing.T) {
 				"apiVersion": "bootstrap.cluster.x-k8s.io/v1alpha4",
 				"metadata": map[string]interface{}{
 					"name":      "bootstrap-config1",
-					"namespace": "default",
+					"namespace": metav1.NamespaceDefault,
 				},
 				"spec":   map[string]interface{}{},
 				"status": map[string]interface{}{},
@@ -571,7 +576,7 @@ func TestReconcileMachinePoolBootstrap(t *testing.T) {
 				"apiVersion": "bootstrap.cluster.x-k8s.io/v1alpha4",
 				"metadata": map[string]interface{}{
 					"name":      "bootstrap-config1",
-					"namespace": "wrong-namespace",
+					"namespace": wrongNamespace,
 				},
 				"spec":   map[string]interface{}{},
 				"status": map[string]interface{}{},
@@ -588,7 +593,7 @@ func TestReconcileMachinePoolBootstrap(t *testing.T) {
 				"apiVersion": "bootstrap.cluster.x-k8s.io/v1alpha4",
 				"metadata": map[string]interface{}{
 					"name":      "bootstrap-config1",
-					"namespace": "wrong-namespace",
+					"namespace": wrongNamespace,
 				},
 				"spec":   map[string]interface{}{},
 				"status": map[string]interface{}{},
@@ -602,7 +607,7 @@ func TestReconcileMachinePoolBootstrap(t *testing.T) {
 				"apiVersion": "bootstrap.cluster.x-k8s.io/v1alpha4",
 				"metadata": map[string]interface{}{
 					"name":      "bootstrap-config1",
-					"namespace": "default",
+					"namespace": metav1.NamespaceDefault,
 				},
 				"spec": map[string]interface{}{},
 				"status": map[string]interface{}{
@@ -613,7 +618,7 @@ func TestReconcileMachinePoolBootstrap(t *testing.T) {
 			machinepool: &expv1.MachinePool{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "bootstrap-test-existing",
-					Namespace: "default",
+					Namespace: metav1.NamespaceDefault,
 				},
 				Spec: expv1.MachinePoolSpec{
 					Template: clusterv1.MachineTemplateSpec{
@@ -646,7 +651,7 @@ func TestReconcileMachinePoolBootstrap(t *testing.T) {
 				"apiVersion": "bootstrap.cluster.x-k8s.io/v1alpha4",
 				"metadata": map[string]interface{}{
 					"name":      "bootstrap-config1",
-					"namespace": "default",
+					"namespace": metav1.NamespaceDefault,
 				},
 				"spec": map[string]interface{}{},
 				"status": map[string]interface{}{
@@ -657,7 +662,7 @@ func TestReconcileMachinePoolBootstrap(t *testing.T) {
 			machinepool: &expv1.MachinePool{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "bootstrap-test-existing",
-					Namespace: "default",
+					Namespace: metav1.NamespaceDefault,
 				},
 				Spec: expv1.MachinePoolSpec{
 					Template: clusterv1.MachineTemplateSpec{
@@ -715,9 +720,9 @@ func TestReconcileMachinePoolInfrastructure(t *testing.T) {
 	defaultMachinePool := expv1.MachinePool{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "machinepool-test",
-			Namespace: "default",
+			Namespace: metav1.NamespaceDefault,
 			Labels: map[string]string{
-				clusterv1.ClusterLabelName: "test-cluster",
+				clusterv1.ClusterLabelName: clusterName,
 			},
 		},
 		Spec: expv1.MachinePoolSpec{
@@ -743,8 +748,8 @@ func TestReconcileMachinePoolInfrastructure(t *testing.T) {
 
 	defaultCluster := &clusterv1.Cluster{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-cluster",
-			Namespace: "default",
+			Name:      clusterName,
+			Namespace: metav1.NamespaceDefault,
 		},
 	}
 
@@ -765,7 +770,7 @@ func TestReconcileMachinePoolInfrastructure(t *testing.T) {
 				"apiVersion": "infrastructure.cluster.x-k8s.io/v1alpha4",
 				"metadata": map[string]interface{}{
 					"name":      "infra-config1",
-					"namespace": "default",
+					"namespace": metav1.NamespaceDefault,
 				},
 				"spec": map[string]interface{}{
 					"providerIDList": []interface{}{
@@ -797,7 +802,7 @@ func TestReconcileMachinePoolInfrastructure(t *testing.T) {
 			machinepool: &expv1.MachinePool{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "machinepool-test",
-					Namespace: "default",
+					Namespace: metav1.NamespaceDefault,
 				},
 				Spec: expv1.MachinePoolSpec{
 					Replicas: pointer.Int32Ptr(1),
@@ -829,7 +834,7 @@ func TestReconcileMachinePoolInfrastructure(t *testing.T) {
 				"apiVersion": "bootstrap.cluster.x-k8s.io/v1alpha4",
 				"metadata": map[string]interface{}{
 					"name":      "bootstrap-config1",
-					"namespace": "default",
+					"namespace": metav1.NamespaceDefault,
 				},
 				"spec": map[string]interface{}{},
 				"status": map[string]interface{}{
@@ -858,7 +863,7 @@ func TestReconcileMachinePoolInfrastructure(t *testing.T) {
 				"apiVersion": "infrastructure.cluster.x-k8s.io/v1alpha4",
 				"metadata": map[string]interface{}{
 					"name":      "infra-config1",
-					"namespace": "default",
+					"namespace": metav1.NamespaceDefault,
 					"annotations": map[string]interface{}{
 						"cluster.x-k8s.io/paused": "true",
 					},
