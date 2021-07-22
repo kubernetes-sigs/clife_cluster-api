@@ -203,8 +203,28 @@ func RegisterConversions(s *runtime.Scheme) error {
 	}); err != nil {
 		return err
 	}
+	if err := s.AddConversionFunc((*v1alpha4.InitConfiguration)(nil), (*v1beta1.InitConfiguration)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1alpha4_InitConfiguration_To_v1beta1_InitConfiguration(a.(*v1alpha4.InitConfiguration), b.(*v1beta1.InitConfiguration), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddConversionFunc((*v1alpha4.JoinConfiguration)(nil), (*v1beta1.JoinConfiguration)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1alpha4_JoinConfiguration_To_v1beta1_JoinConfiguration(a.(*v1alpha4.JoinConfiguration), b.(*v1beta1.JoinConfiguration), scope)
+	}); err != nil {
+		return err
+	}
 	if err := s.AddConversionFunc((*v1beta1.ClusterConfiguration)(nil), (*v1alpha4.ClusterConfiguration)(nil), func(a, b interface{}, scope conversion.Scope) error {
 		return Convert_v1beta1_ClusterConfiguration_To_v1alpha4_ClusterConfiguration(a.(*v1beta1.ClusterConfiguration), b.(*v1alpha4.ClusterConfiguration), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddConversionFunc((*v1beta1.InitConfiguration)(nil), (*v1alpha4.InitConfiguration)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1beta1_InitConfiguration_To_v1alpha4_InitConfiguration(a.(*v1beta1.InitConfiguration), b.(*v1alpha4.InitConfiguration), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddConversionFunc((*v1beta1.JoinConfiguration)(nil), (*v1alpha4.JoinConfiguration)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1beta1_JoinConfiguration_To_v1alpha4_JoinConfiguration(a.(*v1beta1.JoinConfiguration), b.(*v1alpha4.JoinConfiguration), scope)
 	}); err != nil {
 		return err
 	}
@@ -403,8 +423,24 @@ func autoConvert_v1alpha3_KubeadmConfigSpec_To_v1alpha4_KubeadmConfigSpec(in *Ku
 	} else {
 		out.ClusterConfiguration = nil
 	}
-	out.InitConfiguration = (*v1alpha4.InitConfiguration)(unsafe.Pointer(in.InitConfiguration))
-	out.JoinConfiguration = (*v1alpha4.JoinConfiguration)(unsafe.Pointer(in.JoinConfiguration))
+	if in.InitConfiguration != nil {
+		in, out := &in.InitConfiguration, &out.InitConfiguration
+		*out = new(v1alpha4.InitConfiguration)
+		if err := Convert_v1beta1_InitConfiguration_To_v1alpha4_InitConfiguration(*in, *out, s); err != nil {
+			return err
+		}
+	} else {
+		out.InitConfiguration = nil
+	}
+	if in.JoinConfiguration != nil {
+		in, out := &in.JoinConfiguration, &out.JoinConfiguration
+		*out = new(v1alpha4.JoinConfiguration)
+		if err := Convert_v1beta1_JoinConfiguration_To_v1alpha4_JoinConfiguration(*in, *out, s); err != nil {
+			return err
+		}
+	} else {
+		out.JoinConfiguration = nil
+	}
 	out.Files = *(*[]v1alpha4.File)(unsafe.Pointer(&in.Files))
 	out.DiskSetup = (*v1alpha4.DiskSetup)(unsafe.Pointer(in.DiskSetup))
 	out.Mounts = *(*[]v1alpha4.MountPoints)(unsafe.Pointer(&in.Mounts))
@@ -433,8 +469,24 @@ func autoConvert_v1alpha4_KubeadmConfigSpec_To_v1alpha3_KubeadmConfigSpec(in *v1
 	} else {
 		out.ClusterConfiguration = nil
 	}
-	out.InitConfiguration = (*v1beta1.InitConfiguration)(unsafe.Pointer(in.InitConfiguration))
-	out.JoinConfiguration = (*v1beta1.JoinConfiguration)(unsafe.Pointer(in.JoinConfiguration))
+	if in.InitConfiguration != nil {
+		in, out := &in.InitConfiguration, &out.InitConfiguration
+		*out = new(v1beta1.InitConfiguration)
+		if err := Convert_v1alpha4_InitConfiguration_To_v1beta1_InitConfiguration(*in, *out, s); err != nil {
+			return err
+		}
+	} else {
+		out.InitConfiguration = nil
+	}
+	if in.JoinConfiguration != nil {
+		in, out := &in.JoinConfiguration, &out.JoinConfiguration
+		*out = new(v1beta1.JoinConfiguration)
+		if err := Convert_v1alpha4_JoinConfiguration_To_v1beta1_JoinConfiguration(*in, *out, s); err != nil {
+			return err
+		}
+	} else {
+		out.JoinConfiguration = nil
+	}
 	out.Files = *(*[]File)(unsafe.Pointer(&in.Files))
 	out.DiskSetup = (*DiskSetup)(unsafe.Pointer(in.DiskSetup))
 	out.Mounts = *(*[]MountPoints)(unsafe.Pointer(&in.Mounts))

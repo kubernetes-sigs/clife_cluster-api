@@ -19,6 +19,7 @@ package v1beta1
 import (
 	apimachineryconversion "k8s.io/apimachinery/pkg/conversion"
 	bootstrapv1 "sigs.k8s.io/cluster-api/bootstrap/kubeadm/api/v1alpha4"
+	v1alpha4 "sigs.k8s.io/cluster-api/bootstrap/kubeadm/api/v1alpha4"
 	"sigs.k8s.io/controller-runtime/pkg/conversion"
 )
 
@@ -78,4 +79,9 @@ func Convert_v1beta1_DNS_To_v1alpha4_DNS(in *DNS, out *bootstrapv1.DNS, s apimac
 func Convert_v1beta1_ClusterConfiguration_To_v1alpha4_ClusterConfiguration(in *ClusterConfiguration, out *bootstrapv1.ClusterConfiguration, s apimachineryconversion.Scope) error {
 	// ClusterConfiguration.UseHyperKubeImage was removed in kubeadm v1alpha4 API
 	return autoConvert_v1beta1_ClusterConfiguration_To_v1alpha4_ClusterConfiguration(in, out, s)
+}
+
+func Convert_v1alpha4_NodeRegistrationOptions_To_v1beta1_NodeRegistrationOptions(in *v1alpha4.NodeRegistrationOptions, out *NodeRegistrationOptions, s apimachineryconversion.Scope) error {
+	// NodeRegistrationOptions.IgnorePreflightErrors does not exist in kubeadm v1beta1 API
+	return autoConvert_v1alpha4_NodeRegistrationOptions_To_v1beta1_NodeRegistrationOptions(in, out, s)
 }

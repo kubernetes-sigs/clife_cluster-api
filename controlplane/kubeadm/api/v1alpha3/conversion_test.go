@@ -24,6 +24,7 @@ import (
 
 	runtimeserializer "k8s.io/apimachinery/pkg/runtime/serializer"
 	cabpkv1 "sigs.k8s.io/cluster-api/bootstrap/kubeadm/api/v1alpha4"
+	kubeadmbootstrapv1alpha4 "sigs.k8s.io/cluster-api/bootstrap/kubeadm/api/v1alpha4"
 	kubeadmv1beta1 "sigs.k8s.io/cluster-api/bootstrap/kubeadm/types/v1beta1"
 	"sigs.k8s.io/cluster-api/controlplane/kubeadm/api/v1alpha4"
 	utilconversion "sigs.k8s.io/cluster-api/util/conversion"
@@ -53,6 +54,7 @@ func fuzzFuncs(_ runtimeserializer.CodecFactory) []interface{} {
 		cabpkBootstrapTokenStringFuzzer,
 		dnsFuzzer,
 		kubeadmClusterConfigurationFuzzer,
+		kubeadmNodeRegistrationOptionsFuzzer,
 	}
 }
 
@@ -77,4 +79,12 @@ func kubeadmClusterConfigurationFuzzer(obj *kubeadmv1beta1.ClusterConfiguration,
 
 	// ClusterConfiguration.UseHyperKubeImage has been removed in v1alpha4, so setting it to false in order to avoid v1alpha3 --> v1alpha4 --> v1alpha3 round trip errors.
 	obj.UseHyperKubeImage = false
+}
+
+func kubeadmNodeRegistrationOptionsFuzzer(obj *kubeadmbootstrapv1alpha4.NodeRegistrationOptions, c fuzz.Continue) {
+	c.FuzzNoCustom(obj)
+
+	// NodeRegistrationOptions.IgnorePreflightErrors does not exist in kubeadm v1beta1 API, so setting it to nil in order to avoid
+	// v1alpha4 --> v1alpha3 -> v1alpha4 round trip errors.
+	obj.IgnorePreflightErrors = nil
 }

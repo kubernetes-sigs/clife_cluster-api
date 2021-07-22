@@ -225,6 +225,10 @@ type NodeRegistrationOptions struct {
 	// Flags have higher priority when parsing. These values are local and specific to the node kubeadm is executing on.
 	// +optional
 	KubeletExtraArgs map[string]string `json:"kubeletExtraArgs,omitempty"`
+
+	// IgnorePreflightErrors provides a slice of pre-flight errors to be ignored when the current node is registered.
+	// +optional
+	IgnorePreflightErrors []string `json:"ignorePreflightErrors,omitempty"`
 }
 
 // Networking contains elements describing cluster's networking configuration.

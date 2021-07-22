@@ -75,11 +75,6 @@ func Convert_v1beta2_InitConfiguration_To_v1alpha4_InitConfiguration(in *InitCon
 	return autoConvert_v1beta2_InitConfiguration_To_v1alpha4_InitConfiguration(in, out, s)
 }
 
-func Convert_v1beta2_NodeRegistrationOptions_To_v1alpha4_NodeRegistrationOptions(in *NodeRegistrationOptions, out *bootstrapv1.NodeRegistrationOptions, s apimachineryconversion.Scope) error {
-	// NodeRegistrationOptions.IgnorePreflightErrors exists in v1beta2 types but not in bootstrapv1.NodeRegistrationOptions (Cluster API does not support it for now). Ignoring when converting.
-	return autoConvert_v1beta2_NodeRegistrationOptions_To_v1alpha4_NodeRegistrationOptions(in, out, s)
-}
-
 func Convert_v1beta2_JoinControlPlane_To_v1alpha4_JoinControlPlane(in *JoinControlPlane, out *bootstrapv1.JoinControlPlane, s apimachineryconversion.Scope) error {
 	// JoinControlPlane.CertificateKey exists in v1beta2 types but not in bootstrapv1.JoinControlPlane (Cluster API does not uses automatic copy certs). Ignoring when converting.
 	return autoConvert_v1beta2_JoinControlPlane_To_v1alpha4_JoinControlPlane(in, out, s)
