@@ -41,7 +41,7 @@ func TestKubeadmControlPlaneReconciler_updateStatusNoMachines(t *testing.T) {
 	cluster := &clusterv1.Cluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "foo",
-			Namespace: "test",
+			Namespace: metav1.NamespaceDefault,
 		},
 	}
 
@@ -97,7 +97,7 @@ func TestKubeadmControlPlaneReconciler_updateStatusAllMachinesNotReady(t *testin
 	cluster := &clusterv1.Cluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "foo",
-			Namespace: "test",
+			Namespace: metav1.NamespaceDefault,
 		},
 	}
 
@@ -161,7 +161,7 @@ func TestKubeadmControlPlaneReconciler_updateStatusAllMachinesReady(t *testing.T
 
 	cluster := &clusterv1.Cluster{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "test",
+			Namespace: metav1.NamespaceDefault,
 			Name:      "foo",
 		},
 	}
@@ -235,7 +235,7 @@ func TestKubeadmControlPlaneReconciler_updateStatusMachinesReadyMixed(t *testing
 	cluster := &clusterv1.Cluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "foo",
-			Namespace: "test",
+			Namespace: metav1.NamespaceDefault,
 		},
 	}
 
@@ -307,7 +307,7 @@ func TestKubeadmControlPlaneReconciler_machinesCreatedIsIsTrueEvenWhenTheNodesAr
 	cluster := &clusterv1.Cluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "foo",
-			Namespace: "test",
+			Namespace: metav1.NamespaceDefault,
 		},
 	}
 

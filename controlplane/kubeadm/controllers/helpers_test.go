@@ -48,7 +48,7 @@ func TestReconcileKubeconfigEmptyAPIEndpoints(t *testing.T) {
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "foo",
-			Namespace: "test",
+			Namespace: metav1.NamespaceDefault,
 		},
 		Spec: clusterv1.ClusterSpec{
 			ControlPlaneEndpoint: clusterv1.APIEndpoint{},
@@ -62,13 +62,13 @@ func TestReconcileKubeconfigEmptyAPIEndpoints(t *testing.T) {
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "foo",
-			Namespace: "test",
+			Namespace: metav1.NamespaceDefault,
 		},
 		Spec: controlplanev1.KubeadmControlPlaneSpec{
 			Version: "v1.16.6",
 		},
 	}
-	clusterName := client.ObjectKey{Namespace: "test", Name: "foo"}
+	clusterName := client.ObjectKey{Namespace: metav1.NamespaceDefault, Name: "foo"}
 
 	fakeClient := newFakeClient(kcp.DeepCopy())
 	r := &KubeadmControlPlaneReconciler{
@@ -82,7 +82,7 @@ func TestReconcileKubeconfigEmptyAPIEndpoints(t *testing.T) {
 
 	kubeconfigSecret := &corev1.Secret{}
 	secretName := client.ObjectKey{
-		Namespace: "test",
+		Namespace: metav1.NamespaceDefault,
 		Name:      secret.Name(clusterName.Name, secret.Kubeconfig),
 	}
 	g.Expect(r.Client.Get(ctx, secretName, kubeconfigSecret)).To(MatchError(ContainSubstring("not found")))
@@ -98,7 +98,7 @@ func TestReconcileKubeconfigMissingCACertificate(t *testing.T) {
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "foo",
-			Namespace: "test",
+			Namespace: metav1.NamespaceDefault,
 		},
 		Spec: clusterv1.ClusterSpec{
 			ControlPlaneEndpoint: clusterv1.APIEndpoint{Host: "test.local", Port: 8443},
@@ -112,7 +112,7 @@ func TestReconcileKubeconfigMissingCACertificate(t *testing.T) {
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "foo",
-			Namespace: "test",
+			Namespace: metav1.NamespaceDefault,
 		},
 		Spec: controlplanev1.KubeadmControlPlaneSpec{
 			Version: "v1.16.6",
@@ -131,7 +131,7 @@ func TestReconcileKubeconfigMissingCACertificate(t *testing.T) {
 
 	kubeconfigSecret := &corev1.Secret{}
 	secretName := client.ObjectKey{
-		Namespace: "test",
+		Namespace: metav1.NamespaceDefault,
 		Name:      secret.Name(cluster.Name, secret.Kubeconfig),
 	}
 	g.Expect(r.Client.Get(ctx, secretName, kubeconfigSecret)).To(MatchError(ContainSubstring("not found")))
@@ -147,7 +147,7 @@ func TestReconcileKubeconfigSecretAdoptsV1alpha2Secrets(t *testing.T) {
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "foo",
-			Namespace: "test",
+			Namespace: metav1.NamespaceDefault,
 		},
 		Spec: clusterv1.ClusterSpec{
 			ControlPlaneEndpoint: clusterv1.APIEndpoint{Host: "test.local", Port: 8443},
@@ -161,7 +161,7 @@ func TestReconcileKubeconfigSecretAdoptsV1alpha2Secrets(t *testing.T) {
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "foo",
-			Namespace: "test",
+			Namespace: metav1.NamespaceDefault,
 		},
 		Spec: controlplanev1.KubeadmControlPlaneSpec{
 			Version: "v1.16.6",
@@ -169,7 +169,7 @@ func TestReconcileKubeconfigSecretAdoptsV1alpha2Secrets(t *testing.T) {
 	}
 
 	existingKubeconfigSecret := kubeconfig.GenerateSecretWithOwner(
-		client.ObjectKey{Name: "foo", Namespace: "test"},
+		client.ObjectKey{Name: "foo", Namespace: metav1.NamespaceDefault},
 		[]byte{},
 		metav1.OwnerReference{
 			APIVersion: clusterv1.GroupVersion.String(),
@@ -191,7 +191,7 @@ func TestReconcileKubeconfigSecretAdoptsV1alpha2Secrets(t *testing.T) {
 
 	kubeconfigSecret := &corev1.Secret{}
 	secretName := client.ObjectKey{
-		Namespace: "test",
+		Namespace: metav1.NamespaceDefault,
 		Name:      secret.Name(cluster.Name, secret.Kubeconfig),
 	}
 	g.Expect(r.Client.Get(ctx, secretName, kubeconfigSecret)).To(Succeed())
@@ -216,7 +216,7 @@ func TestReconcileKubeconfigSecretDoesNotAdoptsUserSecrets(t *testing.T) {
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "foo",
-			Namespace: "test",
+			Namespace: metav1.NamespaceDefault,
 		},
 		Spec: clusterv1.ClusterSpec{
 			ControlPlaneEndpoint: clusterv1.APIEndpoint{Host: "test.local", Port: 8443},
@@ -230,7 +230,7 @@ func TestReconcileKubeconfigSecretDoesNotAdoptsUserSecrets(t *testing.T) {
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "foo",
-			Namespace: "test",
+			Namespace: metav1.NamespaceDefault,
 		},
 		Spec: controlplanev1.KubeadmControlPlaneSpec{
 			Version: "v1.16.6",
@@ -238,7 +238,7 @@ func TestReconcileKubeconfigSecretDoesNotAdoptsUserSecrets(t *testing.T) {
 	}
 
 	existingKubeconfigSecret := kubeconfig.GenerateSecretWithOwner(
-		client.ObjectKey{Name: "foo", Namespace: "test"},
+		client.ObjectKey{Name: "foo", Namespace: metav1.NamespaceDefault},
 		[]byte{},
 		metav1.OwnerReference{}, // user defined secrets are not owned by the cluster.
 	)
@@ -255,7 +255,7 @@ func TestReconcileKubeconfigSecretDoesNotAdoptsUserSecrets(t *testing.T) {
 
 	kubeconfigSecret := &corev1.Secret{}
 	secretName := client.ObjectKey{
-		Namespace: "test",
+		Namespace: metav1.NamespaceDefault,
 		Name:      secret.Name(cluster.Name, secret.Kubeconfig),
 	}
 	g.Expect(r.Client.Get(ctx, secretName, kubeconfigSecret)).To(Succeed())
@@ -274,7 +274,7 @@ func TestKubeadmControlPlaneReconciler_reconcileKubeconfig(t *testing.T) {
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "foo",
-			Namespace: "test",
+			Namespace: metav1.NamespaceDefault,
 		},
 		Spec: clusterv1.ClusterSpec{
 			ControlPlaneEndpoint: clusterv1.APIEndpoint{Host: "test.local", Port: 8443},
@@ -288,7 +288,7 @@ func TestKubeadmControlPlaneReconciler_reconcileKubeconfig(t *testing.T) {
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "foo",
-			Namespace: "test",
+			Namespace: metav1.NamespaceDefault,
 		},
 		Spec: controlplanev1.KubeadmControlPlaneSpec{
 			Version: "v1.16.6",
@@ -299,7 +299,7 @@ func TestKubeadmControlPlaneReconciler_reconcileKubeconfig(t *testing.T) {
 	g.Expect(clusterCerts.Generate()).To(Succeed())
 	caCert := clusterCerts.GetByPurpose(secret.ClusterCA)
 	existingCACertSecret := caCert.AsSecret(
-		client.ObjectKey{Namespace: "test", Name: "foo"},
+		client.ObjectKey{Namespace: metav1.NamespaceDefault, Name: "foo"},
 		*metav1.NewControllerRef(kcp, controlplanev1.GroupVersion.WithKind("KubeadmControlPlane")),
 	)
 
@@ -314,7 +314,7 @@ func TestKubeadmControlPlaneReconciler_reconcileKubeconfig(t *testing.T) {
 
 	kubeconfigSecret := &corev1.Secret{}
 	secretName := client.ObjectKey{
-		Namespace: "test",
+		Namespace: metav1.NamespaceDefault,
 		Name:      secret.Name(cluster.Name, secret.Kubeconfig),
 	}
 	g.Expect(r.Client.Get(ctx, secretName, kubeconfigSecret)).To(Succeed())
@@ -329,7 +329,7 @@ func TestCloneConfigsAndGenerateMachine(t *testing.T) {
 	cluster := &clusterv1.Cluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "foo",
-			Namespace: "test",
+			Namespace: metav1.NamespaceDefault,
 		},
 	}
 
@@ -413,7 +413,7 @@ func TestCloneConfigsAndGenerateMachineFail(t *testing.T) {
 	cluster := &clusterv1.Cluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "foo",
-			Namespace: "test",
+			Namespace: metav1.NamespaceDefault,
 		},
 	}
 
@@ -472,7 +472,7 @@ func TestCloneConfigsAndGenerateMachineFail(t *testing.T) {
 		Status:   corev1.ConditionFalse,
 		Severity: clusterv1.ConditionSeverityError,
 		Reason:   controlplanev1.InfrastructureTemplateCloningFailedReason,
-		Message:  "failed to retrieve GenericMachineTemplate external object \"test\"/\"something_invalid\": genericmachinetemplates.generic.io \"something_invalid\" not found",
+		Message:  "failed to retrieve GenericMachineTemplate external object \"default\"/\"something_invalid\": genericmachinetemplates.generic.io \"something_invalid\" not found",
 	}))
 }
 
@@ -483,7 +483,7 @@ func TestKubeadmControlPlaneReconciler_generateMachine(t *testing.T) {
 	cluster := &clusterv1.Cluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "testCluster",
-			Namespace: "test",
+			Namespace: metav1.NamespaceDefault,
 		},
 	}
 
@@ -542,7 +542,7 @@ func TestKubeadmControlPlaneReconciler_generateKubeadmConfig(t *testing.T) {
 	cluster := &clusterv1.Cluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "testCluster",
-			Namespace: "test",
+			Namespace: metav1.NamespaceDefault,
 		},
 	}
 

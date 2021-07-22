@@ -53,7 +53,7 @@ func TestGetMachinesForCluster(t *testing.T) {
 	}}
 	cluster := &clusterv1.Cluster{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "my-namespace",
+			Namespace: metav1.NamespaceDefault,
 			Name:      "my-cluster",
 		},
 	}
@@ -261,7 +261,7 @@ func machineListForTestGetMachinesForCluster() *clusterv1.MachineList {
 			TypeMeta: metav1.TypeMeta{},
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      name,
-				Namespace: "my-namespace",
+				Namespace: metav1.NamespaceDefault,
 				Labels: map[string]string{
 					clusterv1.ClusterLabelName: "my-cluster",
 				},

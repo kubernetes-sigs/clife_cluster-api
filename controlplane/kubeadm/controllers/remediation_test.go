@@ -48,6 +48,9 @@ func TestReconcileUnhealthyMachines(t *testing.T) {
 	}
 	ns, err := env.CreateNamespace(ctx, "ns1")
 	g.Expect(err).ToNot(HaveOccurred())
+	defer func() {
+		g.Expect(env.Cleanup(ctx, ns)).To(Succeed())
+	}()
 
 	t.Run("Remediation does not happen if there are no unhealthy machines", func(t *testing.T) {
 		g := NewWithT(t)
@@ -361,8 +364,6 @@ func TestReconcileUnhealthyMachines(t *testing.T) {
 
 		g.Expect(env.Cleanup(ctx, m1, m2, m3, m4)).To(Succeed())
 	})
-
-	g.Expect(env.Cleanup(ctx, ns)).To(Succeed())
 }
 
 func TestCanSafelyRemoveEtcdMember(t *testing.T) {
@@ -371,6 +372,9 @@ func TestCanSafelyRemoveEtcdMember(t *testing.T) {
 
 	ns, err := env.CreateNamespace(ctx, "ns1")
 	g.Expect(err).ToNot(HaveOccurred())
+	defer func() {
+		g.Expect(env.Cleanup(ctx, ns)).To(Succeed())
+	}()
 
 	t.Run("Can't safely remediate 1 machine CP", func(t *testing.T) {
 		g := NewWithT(t)
@@ -734,7 +738,6 @@ func TestCanSafelyRemoveEtcdMember(t *testing.T) {
 
 		g.Expect(env.Cleanup(ctx, m1, m2, m3, m4, m5, m6, m7)).To(Succeed())
 	})
-	g.Expect(env.Cleanup(ctx, ns)).To(Succeed())
 }
 
 func nodes(machines collections.Machines) []string {

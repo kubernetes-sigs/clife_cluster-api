@@ -42,7 +42,7 @@ const Host string = "nodomain.example.com"
 func TestKubeadmControlPlaneReconciler_RolloutStrategy_ScaleUp(t *testing.T) {
 	g := NewWithT(t)
 
-	cluster, kcp, genericMachineTemplate := createClusterWithControlPlane()
+	cluster, kcp, genericMachineTemplate := createClusterWithControlPlane(metav1.NamespaceDefault)
 	cluster.Spec.ControlPlaneEndpoint.Host = Host
 	cluster.Spec.ControlPlaneEndpoint.Port = 6443
 	kcp.Spec.KubeadmConfigSpec.ClusterConfiguration = nil
@@ -131,7 +131,7 @@ func TestKubeadmControlPlaneReconciler_RolloutStrategy_ScaleDown(t *testing.T) {
 	version := "v1.17.3"
 	g := NewWithT(t)
 
-	cluster, kcp, tmpl := createClusterWithControlPlane()
+	cluster, kcp, tmpl := createClusterWithControlPlane(metav1.NamespaceDefault)
 	cluster.Spec.ControlPlaneEndpoint.Host = "nodomain.example.com1"
 	cluster.Spec.ControlPlaneEndpoint.Port = 6443
 	kcp.Spec.Replicas = pointer.Int32Ptr(3)
@@ -218,7 +218,7 @@ func machine(name string, opts ...machineOpt) *clusterv1.Machine {
 	m := &clusterv1.Machine{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: "default",
+			Namespace: metav1.NamespaceDefault,
 		},
 	}
 	for _, opt := range opts {

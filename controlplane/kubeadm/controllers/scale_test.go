@@ -40,7 +40,7 @@ import (
 func TestKubeadmControlPlaneReconciler_initializeControlPlane(t *testing.T) {
 	g := NewWithT(t)
 
-	cluster, kcp, genericMachineTemplate := createClusterWithControlPlane()
+	cluster, kcp, genericMachineTemplate := createClusterWithControlPlane(metav1.NamespaceDefault)
 
 	fakeClient := newFakeClient(cluster.DeepCopy(), kcp.DeepCopy(), genericMachineTemplate.DeepCopy())
 
@@ -87,7 +87,7 @@ func TestKubeadmControlPlaneReconciler_scaleUpControlPlane(t *testing.T) {
 	t.Run("creates a control plane Machine if preflight checks pass", func(t *testing.T) {
 		g := NewWithT(t)
 
-		cluster, kcp, genericMachineTemplate := createClusterWithControlPlane()
+		cluster, kcp, genericMachineTemplate := createClusterWithControlPlane(metav1.NamespaceDefault)
 		setKCPHealthy(kcp)
 		initObjs := []client.Object{cluster.DeepCopy(), kcp.DeepCopy(), genericMachineTemplate.DeepCopy()}
 
@@ -126,7 +126,7 @@ func TestKubeadmControlPlaneReconciler_scaleUpControlPlane(t *testing.T) {
 		g.Expect(controlPlaneMachines.Items).To(HaveLen(3))
 	})
 	t.Run("does not create a control plane Machine if preflight checks fail", func(t *testing.T) {
-		cluster, kcp, genericMachineTemplate := createClusterWithControlPlane()
+		cluster, kcp, genericMachineTemplate := createClusterWithControlPlane(metav1.NamespaceDefault)
 		initObjs := []client.Object{cluster.DeepCopy(), kcp.DeepCopy(), genericMachineTemplate.DeepCopy()}
 		cluster.Spec.ControlPlaneEndpoint.Host = "nodomain.example.com"
 		cluster.Spec.ControlPlaneEndpoint.Port = 6443
