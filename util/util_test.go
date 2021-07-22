@@ -53,7 +53,7 @@ func TestMachineToInfrastructureMapFunc(t *testing.T) {
 			},
 			request: &clusterv1.Machine{
 				ObjectMeta: metav1.ObjectMeta{
-					Namespace: "default",
+					Namespace: metav1.NamespaceDefault,
 					Name:      "test-1",
 				},
 				Spec: clusterv1.MachineSpec{
@@ -67,7 +67,7 @@ func TestMachineToInfrastructureMapFunc(t *testing.T) {
 			output: []reconcile.Request{
 				{
 					NamespacedName: client.ObjectKey{
-						Namespace: "default",
+						Namespace: metav1.NamespaceDefault,
 						Name:      "infra-1",
 					},
 				},
@@ -82,7 +82,7 @@ func TestMachineToInfrastructureMapFunc(t *testing.T) {
 			},
 			request: &clusterv1.Machine{
 				ObjectMeta: metav1.ObjectMeta{
-					Namespace: "default",
+					Namespace: metav1.NamespaceDefault,
 					Name:      "test-1",
 				},
 				Spec: clusterv1.MachineSpec{
@@ -124,7 +124,7 @@ func TestClusterToInfrastructureMapFunc(t *testing.T) {
 			},
 			request: &clusterv1.Cluster{
 				ObjectMeta: metav1.ObjectMeta{
-					Namespace: "default",
+					Namespace: metav1.NamespaceDefault,
 					Name:      "test-1",
 				},
 				Spec: clusterv1.ClusterSpec{
@@ -138,7 +138,7 @@ func TestClusterToInfrastructureMapFunc(t *testing.T) {
 			output: []reconcile.Request{
 				{
 					NamespacedName: client.ObjectKey{
-						Namespace: "default",
+						Namespace: metav1.NamespaceDefault,
 						Name:      "infra-1",
 					},
 				},
@@ -153,7 +153,7 @@ func TestClusterToInfrastructureMapFunc(t *testing.T) {
 			},
 			request: &clusterv1.Cluster{
 				ObjectMeta: metav1.ObjectMeta{
-					Namespace: "default",
+					Namespace: metav1.NamespaceDefault,
 					Name:      "test-1",
 				},
 				Spec: clusterv1.ClusterSpec{
@@ -395,7 +395,7 @@ func TestGetOwnerClusterSuccessByName(t *testing.T) {
 	myCluster := &clusterv1.Cluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "my-cluster",
-			Namespace: "my-ns",
+			Namespace: metav1.NamespaceDefault,
 		},
 	}
 
@@ -411,7 +411,7 @@ func TestGetOwnerClusterSuccessByName(t *testing.T) {
 				Name:       "my-cluster",
 			},
 		},
-		Namespace: "my-ns",
+		Namespace: metav1.NamespaceDefault,
 		Name:      "my-resource-owned-by-cluster",
 	}
 	cluster, err := GetOwnerCluster(ctx, c, objm)
@@ -431,7 +431,7 @@ func TestGetOwnerMachineSuccessByName(t *testing.T) {
 	myMachine := &clusterv1.Machine{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "my-machine",
-			Namespace: "my-ns",
+			Namespace: metav1.NamespaceDefault,
 		},
 	}
 
@@ -447,7 +447,7 @@ func TestGetOwnerMachineSuccessByName(t *testing.T) {
 				Name:       "my-machine",
 			},
 		},
-		Namespace: "my-ns",
+		Namespace: metav1.NamespaceDefault,
 		Name:      "my-resource-owned-by-machine",
 	}
 	machine, err := GetOwnerMachine(ctx, c, objm)
@@ -461,7 +461,7 @@ func TestGetOwnerMachineSuccessByNameFromDifferentVersion(t *testing.T) {
 	myMachine := &clusterv1.Machine{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "my-machine",
-			Namespace: "my-ns",
+			Namespace: metav1.NamespaceDefault,
 		},
 	}
 
@@ -477,7 +477,7 @@ func TestGetOwnerMachineSuccessByNameFromDifferentVersion(t *testing.T) {
 				Name:       "my-machine",
 			},
 		},
-		Namespace: "my-ns",
+		Namespace: metav1.NamespaceDefault,
 		Name:      "my-resource-owned-by-machine",
 	}
 	machine, err := GetOwnerMachine(ctx, c, objm)
@@ -491,7 +491,7 @@ func TestGetMachinesForCluster(t *testing.T) {
 	cluster := &clusterv1.Cluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "my-cluster",
-			Namespace: "my-ns",
+			Namespace: metav1.NamespaceDefault,
 		},
 	}
 

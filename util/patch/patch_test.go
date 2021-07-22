@@ -36,6 +36,16 @@ import (
 )
 
 func TestPatchHelper(t *testing.T) {
+	ns, err := env.CreateNamespace(ctx, "test-patch-helper")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := env.Delete(ctx, ns); err != nil {
+			t.Fatal(err)
+		}
+	}()
+
 	t.Run("should patch an unstructured object", func(t *testing.T) {
 		obj := &unstructured.Unstructured{
 			Object: map[string]interface{}{
@@ -43,15 +53,13 @@ func TestPatchHelper(t *testing.T) {
 				"apiVersion": "bootstrap.cluster.x-k8s.io/v1alpha4",
 				"metadata": map[string]interface{}{
 					"generateName": "test-bootstrap-",
-					"namespace":    "default",
+					"namespace":    ns.Name,
 				},
 			},
 		}
 
 		t.Run("adding an owner reference, preserving its status", func(t *testing.T) {
 			g := NewWithT(t)
-
-			obj := obj.DeepCopy()
 
 			t.Log("Creating the unstructured object")
 			g.Expect(env.Create(ctx, obj)).To(Succeed())
@@ -110,10 +118,10 @@ func TestPatchHelper(t *testing.T) {
 			g := NewWithT(t)
 
 			conditionTime := metav1.Date(2015, 1, 1, 12, 0, 0, 0, metav1.Now().Location())
-
 			obj := &corev1.Node{
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "node-patch-test-",
+					Namespace:    ns.Name,
 					Annotations: map[string]string{
 						"test": "1",
 					},
@@ -165,7 +173,7 @@ func TestPatchHelper(t *testing.T) {
 			obj := &clusterv1.Cluster{
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "test-",
-					Namespace:    "default",
+					Namespace:    ns.Name,
 				},
 			}
 
@@ -478,7 +486,7 @@ func TestPatchHelper(t *testing.T) {
 		obj := &clusterv1.Cluster{
 			ObjectMeta: metav1.ObjectMeta{
 				GenerateName: "test-",
-				Namespace:    "default",
+				Namespace:    ns.Name,
 			},
 		}
 
@@ -565,7 +573,6 @@ func TestPatchHelper(t *testing.T) {
 			g := NewWithT(t)
 
 			obj := obj.DeepCopy()
-			obj.ObjectMeta.Namespace = "default"
 
 			t.Log("Creating the object")
 			g.Expect(env.Create(ctx, obj)).To(Succeed())
@@ -589,7 +596,7 @@ func TestPatchHelper(t *testing.T) {
 			obj.Spec.InfrastructureRef = &corev1.ObjectReference{
 				Kind:      "test-kind",
 				Name:      "test-ref",
-				Namespace: "default",
+				Namespace: ns.Name,
 			}
 
 			t.Log("Patching the object")
@@ -649,7 +656,6 @@ func TestPatchHelper(t *testing.T) {
 			g := NewWithT(t)
 
 			obj := obj.DeepCopy()
-			obj.ObjectMeta.Namespace = "default"
 
 			t.Log("Creating the object")
 			g.Expect(env.Create(ctx, obj)).To(Succeed())
@@ -673,7 +679,7 @@ func TestPatchHelper(t *testing.T) {
 			obj.Spec.InfrastructureRef = &corev1.ObjectReference{
 				Kind:      "test-kind",
 				Name:      "test-ref",
-				Namespace: "default",
+				Namespace: ns.Name,
 			}
 
 			t.Log("Updating the object status")
@@ -703,7 +709,7 @@ func TestPatchHelper(t *testing.T) {
 		obj := &clusterv1.MachineSet{
 			ObjectMeta: metav1.ObjectMeta{
 				GenerateName: "test-ms",
-				Namespace:    "default",
+				Namespace:    ns.Name,
 			},
 			Spec: clusterv1.MachineSetSpec{
 				ClusterName: "test1",
@@ -851,14 +857,14 @@ func TestPatchHelper(t *testing.T) {
 		cluster := &clusterv1.Cluster{
 			ObjectMeta: metav1.ObjectMeta{
 				GenerateName: "test-",
-				Namespace:    "default",
+				Namespace:    ns.Name,
 			},
 		}
 
 		machineSet := &clusterv1.MachineSet{
 			ObjectMeta: metav1.ObjectMeta{
 				GenerateName: "test-ms",
-				Namespace:    "default",
+				Namespace:    ns.Name,
 			},
 			Spec: clusterv1.MachineSetSpec{
 				ClusterName: "test1",
