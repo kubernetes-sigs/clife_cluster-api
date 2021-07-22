@@ -40,6 +40,7 @@ const (
 	documentation = ":book: Documentation"
 	proposals     = ":memo: Proposals"
 	warning       = ":warning: Breaking Changes"
+	tests         = ":green_heart: Testing"
 	other         = ":seedling: Others"
 	unknown       = ":question: Sort these by hand"
 )
@@ -50,6 +51,7 @@ var (
 		warning,
 		features,
 		bugs,
+		tests,
 		other,
 		documentation,
 		unknown,
@@ -91,6 +93,7 @@ func run() int {
 	merges := map[string][]string{
 		features:      {},
 		bugs:          {},
+		tests:         {},
 		documentation: {},
 		warning:       {},
 		other:         {},
@@ -124,6 +127,9 @@ func run() int {
 		body := strings.TrimSpace(c.body)
 		var key, prNumber, fork string
 		switch {
+		case strings.HasPrefix(body, ":hammer:"), strings.HasPrefix(body, "🔨"):
+			// do nothing for chores, we exclude them from release notes
+			continue
 		case strings.HasPrefix(body, ":sparkles:"), strings.HasPrefix(body, "✨"):
 			key = features
 			body = strings.TrimPrefix(body, ":sparkles:")
@@ -147,6 +153,10 @@ func run() int {
 			key = warning
 			body = strings.TrimPrefix(body, ":warning:")
 			body = strings.TrimPrefix(body, "⚠️")
+		case strings.HasPrefix(body, ":green_heart:"), strings.HasPrefix(body, "💚"):
+			key = tests
+			body = strings.TrimPrefix(body, ":green_heart:")
+			body = strings.TrimPrefix(body, "💚")
 		default:
 			key = unknown
 		}

@@ -61,7 +61,9 @@ a:
 - Non-breaking feature: :sparkles: (`:sparkles:`)
 - Patch fix: :bug: (`:bug:`)
 - Docs: :book: (`:book:`)
-- Infra/Tests/Other: :seedling: (`:seedling:`)
+- Tests: :green_heart: (`:green_heart:`)
+- Minor/Other: :seedling: (`:seedling:`)
+- Chores/Infra/Maintenance: :hammer: (`:hammer:`) - these will _not_ appear in release notes
 
 You can also use the equivalent emoji directly, since GitHub doesn't
 render the `:xyz:` aliases in PR titles.

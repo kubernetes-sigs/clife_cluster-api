@@ -47,11 +47,13 @@ come up, including gaps in documentation!
 1. Fork the desired repo, develop and test your code changes.
 1. Submit a pull request.
     1. All code PR must be labeled with one of
-        - ⚠️ (:warning:, major or breaking changes)
-        - ✨ (:sparkles:, feature additions)
-        - 🐛 (:bug:, patch and bugfixes)
-        - 📖 (:book:, documentation or proposals)
-        - 🌱 (:seedling:, minor or other)
+        - ⚠️ (`:warning:`, major or breaking changes)
+        - ✨ (`:sparkles:`, feature additions)
+        - 🐛 (`:bug:`, patch and bugfixes)
+        - 📖 (`:book:`, documentation or proposals)
+        - 🌱 (`:seedling:`, minor or other)
+        - 💚 (`:green_heart:`, tests)
+        - 🔨 (`:hammer:` chores, infra, maintenance - these will _not_ appear in release notes)
 
 All changes must be code reviewed. Coding conventions and standards are explained in the official [developer
 docs](https://git.k8s.io/community/contributors/devel). Expect reviewers to request that you
