@@ -1,0 +1,13 @@
+# See the OWNERS docs at https://go.k8s.io/owners for information on OWNERS files.
+# See the OWNERS_ALIASES file at https://github.com/kubernetes-sigs/cluster-api/blob/master/OWNERS_ALIASES for a list of members for each alias. 
+
+approvers:
+  - cluster-api-admins
+  - cluster-api-maintainers
+  - benmoss
+  - elmiko
+  - randomvariable
+
+reviewers:
+  - cluster-api-maintainers
+  - cluster-api-reviewers
