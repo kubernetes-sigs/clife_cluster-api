@@ -77,6 +77,7 @@ providers = {
             "cloudinit",
             "controllers",
             "docker",
+            "kubemark",
             "exp",
             "third_party",
         ],
