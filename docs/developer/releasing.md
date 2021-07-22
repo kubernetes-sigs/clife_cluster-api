@@ -67,7 +67,7 @@ For version v0.x.y:
 1. Run `make release` to build artifacts (the image is automatically built by CI)
 1. Follow the [Image Promotion process](https://git.k8s.io/k8s.io/k8s.gcr.io#image-promoter) to promote the image from the staging repo to `k8s.gcr.io/cluster-api`
 1. Create a release in GitHub based on the tag created above
-1. Release notes can be created by running `make release-notes`, which will generate an output that can be copied to the drafted release in GitHub.
+1. Release notes can be created by running `go run ./hack/tools/release/notes.go --from=<PREV_VERSION>`, which will generate an output that can be copied to the drafted release in GitHub.
    Pay close attention to the `## :question: Sort these by hand` section, as it contains items that need to be manually sorted.
 
 ### Permissions

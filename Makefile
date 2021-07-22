@@ -58,8 +58,6 @@ TOOLS_DIR := hack/tools
 TOOLS_BIN_DIR := $(TOOLS_DIR)/$(BIN_DIR)
 E2E_FRAMEWORK_DIR := $(TEST_DIR)/framework
 CAPD_DIR := $(TEST_DIR)/infrastructure/docker
-RELEASE_NOTES_BIN := $(BIN_DIR)/release-notes
-RELEASE_NOTES := $(TOOLS_DIR)/$(RELEASE_NOTES_BIN)
 GO_APIDIFF_BIN := $(BIN_DIR)/go-apidiff
 GO_APIDIFF := $(TOOLS_DIR)/$(GO_APIDIFF_BIN)
 ENVSUBST_BIN := $(BIN_DIR)/envsubst
@@ -205,9 +203,6 @@ $(GOTESTSUM): $(TOOLS_DIR)/go.mod # Build gotestsum from tools folder.
 
 $(CONVERSION_GEN): $(TOOLS_DIR)/go.mod
 	cd $(TOOLS_DIR); go build -tags=tools -o $(BIN_DIR)/conversion-gen k8s.io/code-generator/cmd/conversion-gen
-
-$(RELEASE_NOTES): $(TOOLS_DIR)/go.mod
-	cd $(TOOLS_DIR) && go build -tags=tools -o $(RELEASE_NOTES_BIN) ./release
 
 $(GO_APIDIFF): $(TOOLS_DIR)/go.mod
 	cd $(TOOLS_DIR) && go build -tags=tools -o $(GO_APIDIFF_BIN) github.com/joelanford/go-apidiff
@@ -591,10 +586,6 @@ release-alias-tag: ## Adds the tag to the last build tag.
 	gcloud container images add-tag $(CONTROLLER_IMG):$(TAG) $(CONTROLLER_IMG):$(RELEASE_ALIAS_TAG)
 	gcloud container images add-tag $(KUBEADM_BOOTSTRAP_CONTROLLER_IMG):$(TAG) $(KUBEADM_BOOTSTRAP_CONTROLLER_IMG):$(RELEASE_ALIAS_TAG)
 	gcloud container images add-tag $(KUBEADM_CONTROL_PLANE_CONTROLLER_IMG):$(TAG) $(KUBEADM_CONTROL_PLANE_CONTROLLER_IMG):$(RELEASE_ALIAS_TAG)
-
-.PHONY: release-notes
-release-notes: $(RELEASE_NOTES)  ## Generates a release notes template to be used with a release.
-	$(RELEASE_NOTES)
 
 ## --------------------------------------
 ## Cleanup / Verification
