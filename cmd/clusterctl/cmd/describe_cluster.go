@@ -80,11 +80,11 @@ var describeClusterClusterCmd = &cobra.Command{
 		# Describe the cluster named test-1 showing all the conditions for a specific machine.
 		clusterctl describe cluster test-1 --show-conditions Machine/m1
 
-		# Describe the cluster named test-1 disabling automatic grouping of objects with the same ready condition 
+		# Describe the cluster named test-1 disabling automatic grouping of objects with the same ready condition
 		# e.g. un-group all the machines with Ready=true instead of showing a single group node.
 		clusterctl describe cluster test-1 --disable-grouping
 
-		# Describe the cluster named test-1 disabling automatic echo suppression 
+		# Describe the cluster named test-1 disabling automatic echo suppression
         # e.g. show the infrastructure machine objects, no matter if the current state is already reported by the machine's Ready condition.
 		clusterctl describe cluster test-1`),
 
