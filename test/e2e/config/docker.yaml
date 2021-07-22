@@ -125,7 +125,7 @@ variables:
   KUBETEST_CONFIGURATION: "./data/kubetest/conformance.yaml"
   NODE_DRAIN_TIMEOUT: "60s"
   # NOTE: INIT_WITH_BINARY is used only by the clusterctl upgrade test to initialize the management cluster to be upgraded
-  INIT_WITH_BINARY: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v0.3.16/clusterctl-{OS}-{ARCH}"
+  INIT_WITH_BINARY: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v0.3.22/clusterctl-{OS}-{ARCH}"
 
 intervals:
   default/wait-controllers: ["3m", "10s"]
