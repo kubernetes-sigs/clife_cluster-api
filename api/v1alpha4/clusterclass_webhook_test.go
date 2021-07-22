@@ -36,7 +36,7 @@ func TestClusterClassDefaultNamespaces(t *testing.T) {
 	namespace := "default"
 	ref := &corev1.ObjectReference{
 		APIVersion: "foo",
-		Kind:       "bar",
+		Kind:       "barTemplate",
 		Name:       "baz",
 	}
 	in := &ClusterClass{
@@ -78,7 +78,7 @@ func TestClusterClassValidationFeatureGated(t *testing.T) {
 
 	ref := &corev1.ObjectReference{
 		APIVersion: "foo",
-		Kind:       "bar",
+		Kind:       "barTemplate",
 		Name:       "baz",
 		Namespace:  "default",
 	}
@@ -177,17 +177,30 @@ func TestClusterClassValidation(t *testing.T) {
 	defer utilfeature.SetFeatureGateDuringTest(t, feature.Gates, feature.ClusterTopology, true)()
 
 	ref := &corev1.ObjectReference{
-		APIVersion: "foo",
-		Kind:       "bar",
+		APIVersion: "group.test.io/foo",
+		Kind:       "barTemplate",
 		Name:       "baz",
 		Namespace:  "default",
 	}
 	refInAnotherNamespace := &corev1.ObjectReference{
 		APIVersion: "foo",
-		Kind:       "bar",
+		Kind:       "barTemplate",
 		Name:       "baz",
 		Namespace:  "another-namespace",
 	}
+	refBadTemplate := &corev1.ObjectReference{
+		APIVersion: "group.test.io/foo",
+		Kind:       "bar",
+		Name:       "baz",
+		Namespace:  "default",
+	}
+	refBadAPIVersion := &corev1.ObjectReference{
+		APIVersion: "group/test.io/v1/foo",
+		Kind:       "barTemplate",
+		Name:       "baz",
+		Namespace:  "default",
+	}
+
 	tests := []struct {
 		name      string
 		in        *ClusterClass
@@ -319,6 +332,206 @@ func TestClusterClassValidation(t *testing.T) {
 					},
 				},
 			},
+			expectErr: true,
+		},
+		{
+			name: "create fail if bad template in control plane",
+			in: &ClusterClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "default",
+				},
+				Spec: ClusterClassSpec{
+					Infrastructure: LocalObjectTemplate{Ref: refBadTemplate},
+					ControlPlane:   LocalObjectTemplate{Ref: ref},
+					Workers: WorkersClass{
+						MachineDeployments: []MachineDeploymentClass{
+							{
+								Class: "aa",
+								Template: MachineDeploymentClassTemplate{
+									Bootstrap:      LocalObjectTemplate{Ref: ref},
+									Infrastructure: LocalObjectTemplate{Ref: ref},
+								},
+							},
+						},
+					},
+				},
+			},
+			old:       nil,
+			expectErr: true,
+		},
+		{
+			name: "create fail if bad template in infrastructure",
+			in: &ClusterClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "default",
+				},
+				Spec: ClusterClassSpec{
+					Infrastructure: LocalObjectTemplate{Ref: ref},
+					ControlPlane:   LocalObjectTemplate{Ref: refBadTemplate},
+					Workers: WorkersClass{
+						MachineDeployments: []MachineDeploymentClass{
+							{
+								Class: "aa",
+								Template: MachineDeploymentClassTemplate{
+									Bootstrap:      LocalObjectTemplate{Ref: ref},
+									Infrastructure: LocalObjectTemplate{Ref: ref},
+								},
+							},
+						},
+					},
+				},
+			},
+			old:       nil,
+			expectErr: true,
+		},
+		{
+			name: "create fail if bad template in machine deployment bootstrap",
+			in: &ClusterClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "default",
+				},
+				Spec: ClusterClassSpec{
+					Infrastructure: LocalObjectTemplate{Ref: ref},
+					ControlPlane:   LocalObjectTemplate{Ref: ref},
+					Workers: WorkersClass{
+						MachineDeployments: []MachineDeploymentClass{
+							{
+								Class: "aa",
+								Template: MachineDeploymentClassTemplate{
+									Bootstrap:      LocalObjectTemplate{Ref: refBadTemplate},
+									Infrastructure: LocalObjectTemplate{Ref: ref},
+								},
+							},
+						},
+					},
+				},
+			},
+			old:       nil,
+			expectErr: true,
+		},
+		{
+			name: "create fail if bad template in machine deployment infrastructure",
+			in: &ClusterClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "default",
+				},
+				Spec: ClusterClassSpec{
+					Infrastructure: LocalObjectTemplate{Ref: ref},
+					ControlPlane:   LocalObjectTemplate{Ref: ref},
+					Workers: WorkersClass{
+						MachineDeployments: []MachineDeploymentClass{
+							{
+								Class: "aa",
+								Template: MachineDeploymentClassTemplate{
+									Bootstrap:      LocalObjectTemplate{Ref: ref},
+									Infrastructure: LocalObjectTemplate{Ref: refBadTemplate},
+								},
+							},
+						},
+					},
+				},
+			},
+			old:       nil,
+			expectErr: true,
+		},
+		{
+			name: "create fail if bad apiVersion in control plane",
+			in: &ClusterClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "default",
+				},
+				Spec: ClusterClassSpec{
+					Infrastructure: LocalObjectTemplate{Ref: refBadAPIVersion},
+					ControlPlane:   LocalObjectTemplate{Ref: ref},
+					Workers: WorkersClass{
+						MachineDeployments: []MachineDeploymentClass{
+							{
+								Class: "aa",
+								Template: MachineDeploymentClassTemplate{
+									Bootstrap:      LocalObjectTemplate{Ref: ref},
+									Infrastructure: LocalObjectTemplate{Ref: ref},
+								},
+							},
+						},
+					},
+				},
+			},
+			old:       nil,
+			expectErr: true,
+		},
+		{
+			name: "create fail if bad apiVersion in infrastructure",
+			in: &ClusterClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "default",
+				},
+				Spec: ClusterClassSpec{
+					Infrastructure: LocalObjectTemplate{Ref: ref},
+					ControlPlane:   LocalObjectTemplate{Ref: refBadAPIVersion},
+					Workers: WorkersClass{
+						MachineDeployments: []MachineDeploymentClass{
+							{
+								Class: "aa",
+								Template: MachineDeploymentClassTemplate{
+									Bootstrap:      LocalObjectTemplate{Ref: ref},
+									Infrastructure: LocalObjectTemplate{Ref: ref},
+								},
+							},
+						},
+					},
+				},
+			},
+			old:       nil,
+			expectErr: true,
+		},
+		{
+			name: "create fail if bad apiVersion in machine deployment bootstrap",
+			in: &ClusterClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "default",
+				},
+				Spec: ClusterClassSpec{
+					Infrastructure: LocalObjectTemplate{Ref: ref},
+					ControlPlane:   LocalObjectTemplate{Ref: ref},
+					Workers: WorkersClass{
+						MachineDeployments: []MachineDeploymentClass{
+							{
+								Class: "aa",
+								Template: MachineDeploymentClassTemplate{
+									Bootstrap:      LocalObjectTemplate{Ref: refBadAPIVersion},
+									Infrastructure: LocalObjectTemplate{Ref: ref},
+								},
+							},
+						},
+					},
+				},
+			},
+			old:       nil,
+			expectErr: true,
+		},
+		{
+			name: "create fail if bad apiVersion in machine deployment infrastructure",
+			in: &ClusterClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "default",
+				},
+				Spec: ClusterClassSpec{
+					Infrastructure: LocalObjectTemplate{Ref: ref},
+					ControlPlane:   LocalObjectTemplate{Ref: ref},
+					Workers: WorkersClass{
+						MachineDeployments: []MachineDeploymentClass{
+							{
+								Class: "aa",
+								Template: MachineDeploymentClassTemplate{
+									Bootstrap:      LocalObjectTemplate{Ref: ref},
+									Infrastructure: LocalObjectTemplate{Ref: refBadAPIVersion},
+								},
+							},
+						},
+					},
+				},
+			},
+			old:       nil,
 			expectErr: true,
 		},
 		{
