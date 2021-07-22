@@ -10,7 +10,7 @@ reviewers:
   - "@CecileRobertMichon"
   - "@randomvariable"
 creation-date: 2020-03-30
-last-updated: 2020-03-30
+last-updated: 2020-06-24
 status: provisional
 see-also:
 replaces:
@@ -43,8 +43,11 @@ superseded-by:
                * [Azure](#azure)
                   * [Launching Instances](#launching-instances-2)
                   * [Deallocation](#deallocation)
+         * [Termination handler](#termination-handler)
+            * [Termination handler design](#termination-handler-design)
+            * [Running the termination handler](#running-the-termination-handler)
+            * [Termination handler security](#termination-handler-security)
          * [Future Work](#future-work)
-            * [Termination handler](#termination-handler)
             * [Support for MachinePools](#support-for-machinepools)
          * [Risks and Mitigations](#risks-and-mitigations)
             * [Control-Plane instances](#control-plane-instances)
@@ -250,9 +253,6 @@ The Node will transition to an unready state which would be detected by a Machin
 though there may be some delay depending on the configuration of the MachineHealthCheck.
 In the future, a termination handler could trigger the Machine to be deleted sooner.
 
-
-
-
 ### 'Interruptible' label
 
 In order to deploy the termination handler, we'll need to create a DaemonSet that runs it on each spot instance node.
@@ -285,8 +285,7 @@ if !interruptible {
 ```
 
 ### Future Work
-
-#### Termination handler
+### Termination handler
 
 To enable graceful termination of workloads running on non-guaranteed instances,
 a DaemonSet will need to be deployed to watch for termination notices and gracefully move workloads.
@@ -296,6 +295,70 @@ This would be preferable as a DaemonSet would not be required on workload cluste
 
 Since this is not essential for running on non-guaranteed instances and existing solutions exist for each provider,
 users can deploy these existing solutions until CAPI has capacity to implement a solution.
+
+#### Termination handler design
+
+To enable graceful termination of workloads running on non-guaranteed instances,
+a termination handler pod will need to be deployed on each spot instance.
+
+The termination pod will be developed to poll the metadata service for the Node
+that it is running on.
+We will implement request/response handlers for each infrastructure provider that supports non-guaranteed instances
+that will enable the handler to determine if the cloud provider instance is due
+for termination.
+
+The code for all providers will be mostly similar, the only difference is logic for polling termination endpoint and processing the response.
+This means that cloud provider type can be passed as an argument and termination handler can be common for all providers and placed in a separate repository.
+
+Should the instance be marked for termination, the handler will add a condition
+to the Node object that it is running on to signal that the instance will be
+terminating imminently.
+
+```yaml
+- type:     Terminating
+  status:   True
+  Reason:   TerminationRequested
+  Message:  The cloud provider has marked this instance for termination
+```
+
+Once the Node has been marked with the `Terminating` condition, it will be
+the MachineHealthCheck controller's responsibility to ensure that the Machine
+is deleted, triggering it to be drained and removed from the cluster.
+
+To enable this, the following MachineHealthCheck should be deployed:
+
+```yaml
+---
+apiVersion: cluster.x-k8s.io/v1alpha3
+kind: MachineHealthCheck
+metadata:
+  name: cluster-api-termination-handler
+  labels:
+    api: clusterapi
+    k8s-app: termination-handler
+spec:
+  selector:
+    matchLabels:
+      cluster.x-k8s.io/interruptible-instance: "" # This label should be automatically applied to all spot instances
+  maxUnhealthy: 100% # No reason to block the interruption, it's inevitable
+  unhealthyConditions:
+  - type: Terminating
+    status: "True"
+    timeout: 0s # Immediately terminate the instance
+```
+
+#### Running the termination handler
+The Termination Pod will be part of a DaemonSet, that can be deployed using [ClusterResourceSet](https://github.com/kubernetes-sigs/cluster-api/blob/master/docs/proposals/20200220-cluster-resource-set.md). The DaemonSet will select Nodes which are labelled as spot instances to ensure the Termination Pod only runs on instances that require termination handlers.
+
+The spot label will be added to the Node by the machine controller as described [here](#interruptible-label), provided they support spot instances and the instance is a spot instance. 
+#### Termination handler security
+The metadata services that are hosted by the cloud providers are only accessible from the hosts themselves, so the pod will need to run within the host network.
+
+To restrict the possible effects of the termination handler, it should re-use the Kubelet credentials which pass through the [NodeRestriction](https://kubernetes.io/docs/reference/access-authn-authz/admission-controllers/#noderestriction) admission controller. This limits the termination handler to only be able to modify the Node on which it is running. Eg, it would not be able to set the conditions on a different Node.
+
+To be able to mount and read the Kubelet credentials, the pod must be able to mount host paths and, since the credentials have to be mounted as read-only just for the root account, the termination handler must be able to run as root.
+
+### Future Work
 
 #### Support for MachinePools
 
