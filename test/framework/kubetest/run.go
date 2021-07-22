@@ -71,6 +71,8 @@ type RunInput struct {
 	// KubeTestRepoListPath is optional file for specifying custom image repositories
 	// https://github.com/kubernetes/kubernetes/blob/master/test/images/README.md#testing-the-new-image
 	KubeTestRepoListPath string
+	// ExtraMounts is a list of extra files or directories to mount.
+	ExtraMounts map[string]string
 }
 
 // Run executes kube-test given an artifact directory, and sets settings
@@ -127,7 +129,6 @@ func Run(ctx context.Context, input RunInput) error {
 
 	e2eVars := map[string]string{
 		"kubeconfig":           "/tmp/kubeconfig",
-		"provider":             "skeleton",
 		"report-dir":           "/output",
 		"e2e-output-dir":       "/output/e2e-output",
 		"dump-logs-on-failure": "false",
@@ -142,6 +143,9 @@ func Run(ctx context.Context, input RunInput) error {
 	volumeMounts := map[string]string{
 		tmpKubeConfigPath: "/tmp/kubeconfig",
 		reportDir:         "/output",
+	}
+	for k, v := range input.ExtraMounts {
+		volumeMounts[k] = v
 	}
 	user, err := user.Current()
 	if err != nil {
@@ -207,6 +211,10 @@ func parseKubetestConfig(kubetestConfigFile string) (kubetestConfig, error) {
 	}
 	if err := yaml.Unmarshal(data, &conf); err != nil {
 		return nil, fmt.Errorf("unable to parse kubetest config file %s as valid, non-nested YAML: %w", kubetestConfigFile, err)
+	}
+	// Apply defaults
+	if _, ok := conf["provider"]; !ok {
+		conf["provider"] = "skeleton"
 	}
 	return conf, nil
 }
