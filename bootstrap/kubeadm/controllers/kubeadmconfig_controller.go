@@ -35,6 +35,7 @@ import (
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha4"
 	bootstrapv1 "sigs.k8s.io/cluster-api/bootstrap/kubeadm/api/v1alpha4"
 	"sigs.k8s.io/cluster-api/bootstrap/kubeadm/internal/cloudinit"
+	"sigs.k8s.io/cluster-api/bootstrap/kubeadm/internal/ignition"
 	"sigs.k8s.io/cluster-api/bootstrap/kubeadm/internal/locking"
 	kubeadmtypes "sigs.k8s.io/cluster-api/bootstrap/kubeadm/types"
 	bsutil "sigs.k8s.io/cluster-api/bootstrap/util"
@@ -433,7 +434,7 @@ func (r *KubeadmConfigReconciler) handleClusterNotInitialized(ctx context.Contex
 		return ctrl.Result{}, err
 	}
 
-	cloudInitData, err := cloudinit.NewInitControlPlane(&cloudinit.ControlPlaneInput{
+	controlPlaneInput := &cloudinit.ControlPlaneInput{
 		BaseUserData: cloudinit.BaseUserData{
 			AdditionalFiles:     files,
 			NTP:                 scope.Config.Spec.NTP,
@@ -447,13 +448,32 @@ func (r *KubeadmConfigReconciler) handleClusterNotInitialized(ctx context.Contex
 		InitConfiguration:    initdata,
 		ClusterConfiguration: clusterdata,
 		Certificates:         certificates,
-	})
+	}
+
+	var bootstrapInitData []byte
+
+	switch scope.Config.Spec.Format {
+	case bootstrapv1.Ignition:
+		ign, _, err := ignition.NewInitControlPlane(&ignition.ControlPlaneInput{
+			ControlPlaneInput: controlPlaneInput,
+			Ignition:          scope.Config.Spec.Ignition,
+		})
+		if err != nil {
+			scope.Error(err, "Failed to generate Ignition user data for bootstrap control plane")
+			return ctrl.Result{}, err
+		}
+
+		bootstrapInitData = ign
+	default:
+		bootstrapInitData, err = cloudinit.NewInitControlPlane(controlPlaneInput)
+	}
+
 	if err != nil {
-		scope.Error(err, "Failed to generate cloud init for bootstrap control plane")
+		scope.Error(err, "Failed to generate user data for bootstrap control plane")
 		return ctrl.Result{}, err
 	}
 
-	if err := r.storeBootstrapData(ctx, scope, cloudInitData); err != nil {
+	if err := r.storeBootstrapData(ctx, scope, bootstrapInitData); err != nil {
 		scope.Error(err, "Failed to store bootstrap data")
 		return ctrl.Result{}, err
 	}
@@ -514,7 +534,7 @@ func (r *KubeadmConfigReconciler) joinWorker(ctx context.Context, scope *Scope) 
 		return ctrl.Result{}, err
 	}
 
-	cloudJoinData, err := cloudinit.NewNode(&cloudinit.NodeInput{
+	nodeInput := &cloudinit.NodeInput{
 		BaseUserData: cloudinit.BaseUserData{
 			AdditionalFiles:      files,
 			NTP:                  scope.Config.Spec.NTP,
@@ -527,13 +547,33 @@ func (r *KubeadmConfigReconciler) joinWorker(ctx context.Context, scope *Scope) 
 			UseExperimentalRetry: scope.Config.Spec.UseExperimentalRetryJoin,
 		},
 		JoinConfiguration: joinData,
-	})
+	}
+
+	var bootstrapJoinData []byte
+
+	switch scope.Config.Spec.Format {
+	case bootstrapv1.Ignition:
+		ign, _, err := ignition.NewNode(&ignition.NodeInput{
+			NodeInput: nodeInput,
+			Ignition:  scope.Config.Spec.Ignition,
+		})
+
+		if err != nil {
+			scope.Error(err, "Failed to generate Ignition user data for the worker node")
+			return ctrl.Result{}, err
+		}
+
+		bootstrapJoinData = ign
+	default:
+		bootstrapJoinData, err = cloudinit.NewNode(nodeInput)
+	}
+
 	if err != nil {
 		scope.Error(err, "Failed to create a worker join configuration")
 		return ctrl.Result{}, err
 	}
 
-	if err := r.storeBootstrapData(ctx, scope, cloudJoinData); err != nil {
+	if err := r.storeBootstrapData(ctx, scope, bootstrapJoinData); err != nil {
 		scope.Error(err, "Failed to store bootstrap data")
 		return ctrl.Result{}, err
 	}
@@ -597,7 +637,7 @@ func (r *KubeadmConfigReconciler) joinControlplane(ctx context.Context, scope *S
 		return ctrl.Result{}, err
 	}
 
-	cloudJoinData, err := cloudinit.NewJoinControlPlane(&cloudinit.ControlPlaneJoinInput{
+	controlPlaneJoinInput := &cloudinit.ControlPlaneJoinInput{
 		JoinConfiguration: joinData,
 		Certificates:      certificates,
 		BaseUserData: cloudinit.BaseUserData{
@@ -611,13 +651,33 @@ func (r *KubeadmConfigReconciler) joinControlplane(ctx context.Context, scope *S
 			KubeadmVerbosity:     verbosityFlag,
 			UseExperimentalRetry: scope.Config.Spec.UseExperimentalRetryJoin,
 		},
-	})
+	}
+
+	var bootstrapJoinData []byte
+
+	switch scope.Config.Spec.Format {
+	case bootstrapv1.Ignition:
+		ign, _, err := ignition.NewJoinControlPlane(&ignition.ControlPlaneJoinInput{
+			ControlPlaneJoinInput: controlPlaneJoinInput,
+			Ignition:              scope.Config.Spec.Ignition,
+		})
+
+		if err != nil {
+			scope.Error(err, "Failed to generate Ignition user data for join control plane")
+			return ctrl.Result{}, err
+		}
+
+		bootstrapJoinData = ign
+	default:
+		bootstrapJoinData, err = cloudinit.NewJoinControlPlane(controlPlaneJoinInput)
+	}
+
 	if err != nil {
 		scope.Error(err, "Failed to create a control plane join configuration")
 		return ctrl.Result{}, err
 	}
 
-	if err := r.storeBootstrapData(ctx, scope, cloudJoinData); err != nil {
+	if err := r.storeBootstrapData(ctx, scope, bootstrapJoinData); err != nil {
 		scope.Error(err, "Failed to store bootstrap data")
 		return ctrl.Result{}, err
 	}
@@ -878,7 +938,8 @@ func (r *KubeadmConfigReconciler) storeBootstrapData(ctx context.Context, scope 
 			},
 		},
 		Data: map[string][]byte{
-			"value": data,
+			"value":  data,
+			"format": []byte(scope.Config.Spec.Format),
 		},
 		Type: clusterv1.ClusterSecretType,
 	}

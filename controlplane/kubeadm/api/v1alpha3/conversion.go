@@ -38,6 +38,7 @@ func (src *KubeadmControlPlane) ConvertTo(destRaw conversion.Hub) error {
 
 	dest.Spec.RolloutStrategy = restored.Spec.RolloutStrategy
 	dest.Spec.MachineTemplate.ObjectMeta = restored.Spec.MachineTemplate.ObjectMeta
+	dest.Spec.KubeadmConfigSpec.Ignition = restored.Spec.KubeadmConfigSpec.Ignition
 
 	return nil
 }

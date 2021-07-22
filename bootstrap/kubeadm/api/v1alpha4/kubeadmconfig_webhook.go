@@ -59,6 +59,24 @@ func (c *KubeadmConfig) ValidateDelete() error {
 }
 
 func (c *KubeadmConfigSpec) validate(name string) error {
+	allErrs := c.Validate()
+
+	if len(allErrs) == 0 {
+		return nil
+	}
+	return apierrors.NewInvalid(GroupVersion.WithKind("KubeadmConfig").GroupKind(), name, allErrs)
+}
+
+func (c *KubeadmConfigSpec) Validate() field.ErrorList {
+	var allErrs field.ErrorList
+
+	allErrs = append(allErrs, c.validateFiles()...)
+	allErrs = append(allErrs, c.validateIgnition()...)
+
+	return allErrs
+}
+
+func (c *KubeadmConfigSpec) validateFiles() field.ErrorList {
 	var allErrs field.ErrorList
 
 	knownPaths := map[string]struct{}{}
@@ -114,8 +132,50 @@ func (c *KubeadmConfigSpec) validate(name string) error {
 		knownPaths[file.Path] = struct{}{}
 	}
 
-	if len(allErrs) == 0 {
-		return nil
+	return allErrs
+}
+
+func (c *KubeadmConfigSpec) validateIgnition() field.ErrorList {
+	var allErrs field.ErrorList
+
+	if c.Ignition != nil && c.Format != Ignition {
+		allErrs = append(allErrs, field.Invalid(
+			field.NewPath("spec", "format"), c.Format, fmt.Sprintf("must be set to %q if spec.ignition is set", Ignition)))
 	}
-	return apierrors.NewInvalid(GroupVersion.WithKind("KubeadmConfig").GroupKind(), name, allErrs)
+
+	if c.Format == Ignition && c.Ignition == nil {
+		allErrs = append(allErrs, field.Invalid(
+			field.NewPath("spec", "ignition"), c.Ignition, fmt.Sprintf("must be set if spec.format is set to %q", Ignition)))
+	}
+
+	if c.Format != Ignition {
+		return allErrs
+	}
+
+	detail := fmt.Sprintf("is not supported when spec.format is set to %q", Ignition)
+
+	for i, user := range c.Users {
+		if user.Inactive != nil && *user.Inactive {
+			allErrs = append(allErrs, field.Forbidden(field.NewPath("spec", "users", fmt.Sprintf("%d", i), "inactive"),
+				detail))
+		}
+	}
+
+	if c.UseExperimentalRetryJoin {
+		allErrs = append(allErrs, field.Forbidden(field.NewPath("spec", "useExperimentalRetryJoin"), detail))
+	}
+
+	if c.DiskSetup == nil {
+		return allErrs
+	}
+
+	for i, partition := range c.DiskSetup.Partitions {
+		if partition.TableType != nil && *partition.TableType != "gpt" {
+			path := field.NewPath("spec", "diskSetup", "partitions", fmt.Sprintf("%d", i), "tableType")
+			detail := fmt.Sprintf("only partition type %q is supported when spec.format is set to %q", "gpt", Ignition)
+			allErrs = append(allErrs, field.Invalid(path, *partition.TableType, detail))
+		}
+	}
+
+	return allErrs
 }

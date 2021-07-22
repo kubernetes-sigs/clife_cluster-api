@@ -56,3 +56,11 @@ aliases:
 
   cluster-api-provider-docker-reviewers:
   cluster-api-provider-docker-maintainers:
+
+  # -----------------------------------------------------------
+  # OWNER_ALIASES for bootstrap/kubeadm/internal/ignition
+  # -----------------------------------------------------------
+
+  cluster-api-ignition-reviewers:
+  - dongsupark
+  - invidian
