@@ -486,9 +486,11 @@ spec:
                         type: object
                       replicas:
                         description: Replicas is the number of control plane nodes.
+                          If the value is nil, the ControlPlane object is created
+                          without the number of Replicas and it's assumed that the
+                          control plane controller does not implement support for
+                          this field.
                         type: integer
-                    required:
-                    - replicas
                     type: object
                   rolloutAfter:
                     description: RolloutAfter performs a rollout of the entire cluster
