@@ -36,6 +36,7 @@ import (
 	clusterv1old "sigs.k8s.io/cluster-api/api/v1alpha3"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha4"
 	"sigs.k8s.io/cluster-api/controllers"
+	"sigs.k8s.io/cluster-api/controllers/clusterclassutil"
 	"sigs.k8s.io/cluster-api/controllers/noderefutil"
 	"sigs.k8s.io/cluster-api/controllers/remote"
 	addonsv1old "sigs.k8s.io/cluster-api/exp/addons/api/v1alpha3"
@@ -229,6 +230,13 @@ func setupIndexes(ctx context.Context, mgr ctrl.Manager) {
 	if err := noderefutil.AddMachineNodeIndex(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to setup index")
 		os.Exit(1)
+	}
+
+	if feature.Gates.Enabled(feature.ClusterTopology) {
+		if err := clusterclassutil.AddClusterClassNameIndex(ctx, mgr); err != nil {
+			setupLog.Error(err, "unable to setup index")
+			os.Exit(1)
+		}
 	}
 }
 
